@@ -1,0 +1,53 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(go mod:*)",
+      "Bash(go build:*)",
+      "Bash(npm install:*)",
+      "Bash(npx vite:*)",
+      "Bash(psql -U postgres -c \"SELECT 1\")",
+      "Bash(where psql:*)",
+      "Read(//c/Program Files/PostgreSQL/**)",
+      "Bash(\"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"SELECT 1\")",
+      "Bash(\"/c/Program Files/PostgreSQL/18/bin/pg_isready.exe\")",
+      "Bash(PGPASSWORD=postgres \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"CREATE DATABASE apollo_hospital;\")",
+      "Bash(grep -v \"^$\")",
+      "Bash(PGPASSWORD=root \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"SELECT 1\")",
+      "Bash(PGPASSWORD=admin \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"SELECT 1\")",
+      "Bash(PGPASSWORD=1234 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"SELECT 1\")",
+      "Bash(PGPASSWORD=123456 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"SELECT 1\")",
+      "Bash(PGPASSWORD=Jaimin \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"SELECT 1\")",
+      "Bash(PGPASSWORD=jaimin \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -c \"SELECT 1\")",
+      "Bash(npm run:*)",
+      "Read(//c/Users/Jaimin/Downloads/**)",
+      "Bash(ls -lt /c/Users/Jaimin/Downloads/*.jpg /c/Users/Jaimin/Downloads/*.png /c/Users/Jaimin/Downloads/*.jpeg /c/Users/Jaimin/Downloads/*.webp)",
+      "Read(//c/Users/Jaimin/AppData/Local/Temp/**)",
+      "Bash(curl -sL \"https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=1200&q=80\" -o /c/Users/Jaimin/Downloads/jaimin_apollo_frontend/public/images/hospital-corridor.jpg)",
+      "Read(//c/Users/Jaimin/.vscode/**)",
+      "Read(//c/Users/Jaimin/**)",
+      "Bash(go run:*)",
+      "Bash(curl -s http://localhost:8080/api/health)",
+      "Bash(netstat -ano)",
+      "Bash(tasklist /FI 'PID eq 5236')",
+      "Bash(WMIC PROCESS WHERE ProcessId=5236 GET Name,ProcessId)",
+      "Bash(tasklist)",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d hms -c \"\\\\dt\")",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d hms -c \"\\\\d users\")",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d hms -c \"\\\\d audit_logs\")",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d hms -c \"\\\\di\")",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -U postgres -d hms -c \":*)",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"admin@apollo.health\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"admin123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"admin\"\"\"\"}')",
+      "Bash(curl -s http://localhost:3000)",
+      "Bash(npx vue-tsc:*)",
+      "Bash(taskkill //F //IM \"main.exe\")",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Sarah Jenkins\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"sarah@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-998273-X\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')",
+      "Bash(python3 -m json.tool)",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Sarah Jenkins\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"sarah@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-998273-X\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Test Doctor\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"testdoc@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-111222\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Test Doctor\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"testdoc@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-111222\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')"
+    ],
+    "additionalDirectories": [
+      "C:\\Users\\Jaimin\\Downloads\\jaimin_apollo_backend\\cmd"
+    ]
+  }
+}
