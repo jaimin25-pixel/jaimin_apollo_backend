@@ -40,3 +40,7 @@ func (r *UserRepo) Create(u *model.User) error {
 func (r *UserRepo) UpdateLastLogin(id uuid.UUID) error {
 	return r.DB.Model(&model.User{}).Where("id = ?", id).Update("last_login_at", gorm.Expr("NOW()")).Error
 }
+
+func (r *UserRepo) UpdatePassword(id uuid.UUID, hash string) error {
+	return r.DB.Model(&model.User{}).Where("id = ?", id).Update("password_hash", hash).Error
+}

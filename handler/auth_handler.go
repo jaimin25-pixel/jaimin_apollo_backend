@@ -61,6 +61,55 @@ func (h *AuthHandler) Register(c *gin.Context) {
 	})
 }
 
+func (h *AuthHandler) ForgotPassword(c *gin.Context) {
+	var input service.ForgotPasswordInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	code, err := h.authSvc.ForgotPassword(input, c.ClientIP(), c.GetHeader("User-Agent"))
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"message": "password reset code sent",
+		"code":    code, // dev mode only — remove when email is integrated
+	})
+}
+
+func (h *AuthHandler) VerifyCode(c *gin.Context) {
+	var input service.VerifyCodeInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.authSvc.VerifyResetCode(input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "code is valid"})
+}
+
+func (h *AuthHandler) ResetPassword(c *gin.Context) {
+	var input service.ResetPasswordInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.authSvc.ResetPassword(input, c.ClientIP(), c.GetHeader("User-Agent")); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
+}
+
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, _ := c.Get("userID")
 	user, err := h.authSvc.GetUserByID(userID.(uuid.UUID))

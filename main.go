@@ -24,9 +24,10 @@ func main() {
 	// repositories
 	userRepo := repository.NewUserRepo(db)
 	auditRepo := repository.NewAuditRepo(db)
+	passwordResetRepo := repository.NewPasswordResetRepo(db)
 
 	// services
-	authSvc := service.NewAuthService(userRepo, auditRepo, cfg)
+	authSvc := service.NewAuthService(userRepo, auditRepo, passwordResetRepo, cfg)
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc)
@@ -46,8 +47,14 @@ func main() {
 		{
 			auth.POST("/register", authH.Register)
 			auth.POST("/login", authH.Login)
+			auth.POST("/forgot-password", authH.ForgotPassword)
+			auth.POST("/verify-code", authH.VerifyCode)
+			auth.POST("/reset-password", authH.ResetPassword)
 			auth.GET("/me", middleware.JWTAuth(authSvc), authH.Me)
 		}
+		api.GET("/auth/encryption-key", func(c *gin.Context) {
+			c.JSON(200, gin.H{"key": cfg.AESKey})
+		})
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})

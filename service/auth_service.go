@@ -1,11 +1,15 @@
 package service
 
 import (
+	"crypto/rand"
 	"errors"
+	"fmt"
+	"math/big"
 	"strings"
 	"time"
 
 	"apollo-backend/config"
+	"apollo-backend/util"
 	"apollo-backend/model"
 	"apollo-backend/repository"
 
@@ -15,13 +19,27 @@ import (
 )
 
 type AuthService struct {
-	userRepo  *repository.UserRepo
-	auditRepo *repository.AuditRepo
-	cfg       *config.Config
+	userRepo          *repository.UserRepo
+	auditRepo         *repository.AuditRepo
+	passwordResetRepo *repository.PasswordResetRepo
+	cfg               *config.Config
 }
 
-func NewAuthService(ur *repository.UserRepo, ar *repository.AuditRepo, cfg *config.Config) *AuthService {
-	return &AuthService{userRepo: ur, auditRepo: ar, cfg: cfg}
+func NewAuthService(ur *repository.UserRepo, ar *repository.AuditRepo, prr *repository.PasswordResetRepo, cfg *config.Config) *AuthService {
+	return &AuthService{userRepo: ur, auditRepo: ar, passwordResetRepo: prr, cfg: cfg}
+}
+
+func (s *AuthService) decryptPassword(encrypted string) (string, error) {
+	// If the password doesn't look like base64 (contains @ or spaces or is short), treat as plaintext for backwards compat
+	if len(encrypted) < 20 {
+		return encrypted, nil
+	}
+	decrypted, err := util.DecryptAES256(encrypted, s.cfg.AESKeyBytes())
+	if err != nil {
+		// Fallback: treat as plaintext (for non-encrypted clients)
+		return encrypted, nil
+	}
+	return decrypted, nil
 }
 
 type TokenPair struct {
@@ -70,7 +88,8 @@ func (s *AuthService) Login(input LoginInput, ip, ua string) (*model.User, *Toke
 		return nil, nil, errors.New("invalid credentials")
 	}
 
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(input.Password)); err != nil {
+	password, _ := s.decryptPassword(input.Password)
+	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
 		return nil, nil, errors.New("invalid credentials")
 	}
 
@@ -101,7 +120,8 @@ func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, er
 		return nil, nil, errors.New("invalid admin access key")
 	}
 
-	hash, err := bcrypt.GenerateFromPassword([]byte(input.Password), bcrypt.DefaultCost)
+	password, _ := s.decryptPassword(input.Password)
+	hash, err := bcrypt.GenerateFromPassword([]byte(password), bcrypt.DefaultCost)
 	if err != nil {
 		return nil, nil, errors.New("failed to hash password")
 	}
@@ -215,4 +235,97 @@ func (s *AuthService) generateTokens(user *model.User) (*TokenPair, error) {
 	return &TokenPair{
 		AccessToken: accessToken, RefreshToken: refreshToken, ExpiresAt: accessExp.Unix(),
 	}, nil
+}
+
+// ---- Password Reset ----
+
+type ForgotPasswordInput struct {
+	Email string `json:"email" binding:"required,email"`
+}
+
+type VerifyCodeInput struct {
+	Email string `json:"email" binding:"required,email"`
+	Code  string `json:"code" binding:"required,len=6"`
+}
+
+type ResetPasswordInput struct {
+	Email       string `json:"email" binding:"required,email"`
+	Code        string `json:"code" binding:"required,len=6"`
+	NewPassword string `json:"new_password" binding:"required,min=12"`
+}
+
+func (s *AuthService) ForgotPassword(input ForgotPasswordInput, ip, ua string) (string, error) {
+	user, err := s.userRepo.FindByEmail(input.Email)
+	if err != nil {
+		return "", errors.New("user not found")
+	}
+
+	code, err := generateRandomCode()
+	if err != nil {
+		return "", errors.New("failed to generate reset code")
+	}
+
+	pr := &model.PasswordReset{
+		UserID:    user.ID,
+		Code:      code,
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+	}
+	if err := s.passwordResetRepo.Create(pr); err != nil {
+		return "", errors.New("failed to create reset code")
+	}
+
+	_ = s.auditRepo.Log(&model.AuditLog{
+		UserID: user.ID, Action: "password_reset_requested", IPAddress: ip, UserAgent: ua,
+	})
+
+	return code, nil
+}
+
+func (s *AuthService) VerifyResetCode(input VerifyCodeInput) error {
+	_, err := s.passwordResetRepo.FindValidCode(input.Email, input.Code)
+	if err != nil {
+		return errors.New("invalid or expired code")
+	}
+	return nil
+}
+
+func (s *AuthService) ResetPassword(input ResetPasswordInput, ip, ua string) error {
+	pr, err := s.passwordResetRepo.FindValidCode(input.Email, input.Code)
+	if err != nil {
+		return errors.New("invalid or expired code")
+	}
+
+	newPassword, _ := s.decryptPassword(input.NewPassword)
+	hash, err := bcrypt.GenerateFromPassword([]byte(newPassword), bcrypt.DefaultCost)
+	if err != nil {
+		return errors.New("failed to hash password")
+	}
+
+	user, err := s.userRepo.FindByEmail(input.Email)
+	if err != nil {
+		return errors.New("user not found")
+	}
+
+	if err := s.userRepo.UpdatePassword(user.ID, string(hash)); err != nil {
+		return errors.New("failed to update password")
+	}
+
+	_ = s.passwordResetRepo.MarkUsed(pr.ID)
+	_ = s.passwordResetRepo.InvalidateAll(user.ID)
+
+	_ = s.auditRepo.Log(&model.AuditLog{
+		UserID: user.ID, Action: "password_reset_completed", IPAddress: ip, UserAgent: ua,
+	})
+
+	return nil
+}
+
+// generateRandomCode returns a cryptographically random 6-digit string.
+func generateRandomCode() (string, error) {
+	max := big.NewInt(1000000)
+	n, err := rand.Int(rand.Reader, max)
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%06d", n.Int64()), nil
 }

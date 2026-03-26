@@ -44,7 +44,13 @@
       "Bash(python3 -m json.tool)",
       "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Sarah Jenkins\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"sarah@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-998273-X\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')",
       "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H \"Content-Type: application/json\" -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Test Doctor\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"testdoc@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-111222\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')",
-      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Test Doctor\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"testdoc@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-111222\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')"
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Dr. Test Doctor\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"testdoc@apollo.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"doctor123\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"doctor\"\"\"\",\"\"\"\"license_number\"\"\"\":\"\"\"\"MED-111222\"\"\"\",\"\"\"\"specialization\"\"\"\":\"\"\"\"Cardiology\"\"\"\"}')",
+      "Bash(./main.exe)",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/forgot-password -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"admin@apollo.health\"\"}')",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/verify-code -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"admin@apollo.health\"\",\"\"code\"\":\"\"220861\"\"}')",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/reset-password -H \"Content-Type: application/json\" -d '{\"\"email\"\":\"\"admin@apollo.health\"\",\"\"code\"\":\"\"220861\"\",\"\"new_password\"\":\"\"Admin@12345678\"\"}')",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/login -H \"Content-Type: application/json\" -d '{\"\"\"\"email\"\"\"\":\"\"\"\"admin@apollo.health\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"Admin@12345678\"\"\"\",\"\"\"\"role\"\"\"\":\"\"\"\"admin\"\"\"\"}')",
+      "Bash(taskkill //F //PID 11608)"
     ],
     "additionalDirectories": [
       "C:\\Users\\Jaimin\\Downloads\\jaimin_apollo_backend\\cmd"

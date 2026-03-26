@@ -39,6 +39,7 @@ func migrate(db *gorm.DB) {
 		&model.PharmacistProfile{},
 		&model.AdminProfile{},
 		&model.AuditLog{},
+		&model.PasswordReset{},
 	)
 	if err != nil {
 		log.Fatalf("migration failed: %v", err)
