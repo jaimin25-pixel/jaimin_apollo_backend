@@ -1,15 +1,11 @@
 package model
 
-import (
-	"time"
+import "time"
 
-	"github.com/google/uuid"
-)
-
-// PasswordReset is immutable — no DeletedAt, no gorm.Model
+// PasswordReset stores 6-digit OTP codes with 10 min expiry. Immutable.
 type PasswordReset struct {
-	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index:idx_reset_user" json:"user_id"`
+	ID        uint      `gorm:"primaryKey;autoIncrement" json:"id"`
+	UserID    uint      `gorm:"not null;index:idx_reset_user" json:"user_id"`
 	Code      string    `gorm:"not null;size:6;index:idx_reset_code" json:"-"`
 	ExpiresAt time.Time `gorm:"not null;index:idx_reset_expires" json:"expires_at"`
 	Used      bool      `gorm:"default:false" json:"used"`

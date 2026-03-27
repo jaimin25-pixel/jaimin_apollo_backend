@@ -3,18 +3,22 @@ package model
 import (
 	"time"
 
-	"github.com/google/uuid"
+	"gorm.io/datatypes"
 )
 
-// AuditLog is immutable — no DeletedAt, no gorm.Model
+// AuditLog is an immutable audit trail for all data modifications.
+// Populated by database triggers. Records are never deleted.
 type AuditLog struct {
-	ID        uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	UserID    uuid.UUID `gorm:"type:uuid;not null;index:idx_audit_user" json:"user_id"`
-	Action    string    `gorm:"not null;size:50;index:idx_audit_action" json:"action"`
-	IPAddress string    `gorm:"size:45" json:"ip_address"`
-	UserAgent string    `gorm:"size:500" json:"user_agent"`
-	Detail    string    `gorm:"type:text" json:"detail,omitempty"`
-	CreatedAt time.Time `gorm:"not null;index:idx_audit_created" json:"created_at"`
+	LogID     uint64         `gorm:"primaryKey;autoIncrement" json:"log_id"`
+	UserID    uint           `gorm:"not null;index:idx_audit_user" json:"user_id"`
+	UserRole  string         `gorm:"not null;size:50" json:"user_role"`
+	Action    string         `gorm:"not null;size:20;index:idx_audit_action" json:"action"`
+	TblName   string         `gorm:"column:table_name;not null;size:100" json:"table_name"`
+	RecordID  uint           `gorm:"not null" json:"record_id"`
+	OldVal    datatypes.JSON `gorm:"type:jsonb" json:"old_val,omitempty"`
+	NewVal    datatypes.JSON `gorm:"type:jsonb" json:"new_val,omitempty"`
+	IPAddress string         `gorm:"type:inet;size:45" json:"ip_address,omitempty"`
+	Ts        time.Time      `gorm:"not null;default:now();index:idx_audit_ts" json:"ts"`
 }
 
 func (AuditLog) TableName() string { return "audit_logs" }

@@ -2,13 +2,11 @@ package handler
 
 import (
 	"net/http"
+	"strings"
 
 	"apollo-backend/service"
 
-	"strings"
-
 	"github.com/gin-gonic/gin"
-	"github.com/google/uuid"
 )
 
 type AuthHandler struct {
@@ -76,7 +74,7 @@ func (h *AuthHandler) ForgotPassword(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "password reset code sent",
-		"code":    code, // dev mode only — remove when email is integrated
+		"code":    code,
 	})
 }
 
@@ -110,9 +108,15 @@ func (h *AuthHandler) ResetPassword(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{"message": "password reset successfully"})
 }
 
+func (h *AuthHandler) Logout(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	h.authSvc.Logout(userID.(uint), c.ClientIP(), c.GetHeader("User-Agent"))
+	c.JSON(http.StatusOK, gin.H{"message": "logged out successfully"})
+}
+
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, _ := c.Get("userID")
-	user, err := h.authSvc.GetUserByID(userID.(uuid.UUID))
+	user, err := h.authSvc.GetUserByID(userID.(uint))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return

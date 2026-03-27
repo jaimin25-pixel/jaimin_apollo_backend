@@ -1,27 +1,15 @@
 package model
 
-import (
-	"time"
+import "time"
 
-	"github.com/google/uuid"
-)
-
-type AccessLevel string
-
-const (
-	AccessSuperAdmin AccessLevel = "super_admin"
-	AccessManager    AccessLevel = "manager"
-	AccessStaff      AccessLevel = "staff"
-)
-
-type AdminProfile struct {
-	ID          uuid.UUID   `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	UserID      uuid.UUID   `gorm:"type:uuid;not null;uniqueIndex:idx_admin_user" json:"user_id"`
-	EmployeeID  string      `gorm:"not null;size:100;uniqueIndex:idx_admin_employee" json:"employee_id"`
-	Department  string      `gorm:"not null;size:100;index:idx_admin_department" json:"department"`
-	AccessLevel AccessLevel `gorm:"type:varchar(20);default:'staff';index:idx_admin_access" json:"access_level"`
-	CreatedAt   time.Time   `json:"created_at"`
-	UpdatedAt   time.Time   `json:"updated_at"`
+// Admin stores the hospital system administrator account.
+// Only one row is expected. Email validated against ADMIN_EMAIL env var.
+type Admin struct {
+	AdminID        uint       `gorm:"primaryKey;autoIncrement" json:"admin_id"`
+	Email          string     `gorm:"uniqueIndex;not null;size:255" json:"email"`
+	HashedPassword string     `gorm:"not null;size:255" json:"-"`
+	LastLogin      *time.Time `json:"last_login,omitempty"`
+	CreatedAt      time.Time  `gorm:"not null;default:now()" json:"created_at"`
 }
 
-func (AdminProfile) TableName() string { return "admin_profiles" }
+func (Admin) TableName() string { return "admins" }

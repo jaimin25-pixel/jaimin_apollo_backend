@@ -1,20 +1,17 @@
 package model
 
-import (
-	"time"
+import "time"
 
-	"github.com/google/uuid"
-)
-
-type PharmacistProfile struct {
-	ID             uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	UserID         uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_pharmacist_user" json:"user_id"`
-	LicenseNumber  string    `gorm:"not null;size:100;uniqueIndex:idx_pharmacist_license" json:"license_number"`
-	BranchLocation string    `gorm:"size:200;index:idx_pharmacist_branch" json:"branch_location,omitempty"`
-	Shift          string    `gorm:"size:20" json:"shift,omitempty"`
-	IsOnDuty       bool      `gorm:"default:true;index:idx_pharmacist_duty" json:"is_on_duty"`
-	CreatedAt      time.Time `json:"created_at"`
-	UpdatedAt      time.Time `json:"updated_at"`
+// Pharmacist stores authentication and profile data for pharmacists.
+type Pharmacist struct {
+	PharmacistID   uint      `gorm:"primaryKey;autoIncrement" json:"pharmacist_id"`
+	FullName       string    `gorm:"not null;size:150" json:"full_name"`
+	Email          string    `gorm:"uniqueIndex;not null;size:255" json:"email"`
+	HashedPassword string    `gorm:"not null;size:255" json:"-"`
+	LicenseNumber  string    `gorm:"uniqueIndex;not null;size:50" json:"license_number"`
+	Phone          string    `gorm:"size:20" json:"phone,omitempty"`
+	Status         string    `gorm:"not null;default:'active';size:20" json:"status"`
+	CreatedAt      time.Time `gorm:"not null;default:now()" json:"created_at"`
 }
 
-func (PharmacistProfile) TableName() string { return "pharmacist_profiles" }
+func (Pharmacist) TableName() string { return "pharmacists" }

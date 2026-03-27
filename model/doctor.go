@@ -1,23 +1,25 @@
 package model
 
-import (
-	"time"
+import "time"
 
-	"github.com/google/uuid"
-)
+// Doctor stores credentials and profile data for all hospital doctors.
+type Doctor struct {
+	DoctorID       uint      `gorm:"primaryKey;autoIncrement" json:"doctor_id"`
+	DocCode        string    `gorm:"uniqueIndex;not null;size:20" json:"doc_code"`
+	FullName       string    `gorm:"not null;size:150" json:"full_name"`
+	Email          string    `gorm:"uniqueIndex;not null;size:255" json:"email"`
+	HashedPassword string    `gorm:"not null;size:255" json:"-"`
+	DeptID         uint      `gorm:"not null;index" json:"dept_id"`
+	Specialization string    `gorm:"not null;size:100" json:"specialization"`
+	Qualification  string    `gorm:"not null;size:200" json:"qualification"`
+	Phone          string    `gorm:"size:20" json:"phone,omitempty"`
+	JoiningDate    time.Time `gorm:"type:date;not null" json:"joining_date"`
+	Status         string    `gorm:"not null;default:'active';size:20" json:"status"`
+	CreatedAt      time.Time `gorm:"not null;default:now()" json:"created_at"`
+	UpdatedAt      time.Time `gorm:"not null;default:now()" json:"updated_at"`
 
-type DoctorProfile struct {
-	ID               uuid.UUID `gorm:"type:uuid;default:gen_random_uuid();primaryKey" json:"id"`
-	UserID           uuid.UUID `gorm:"type:uuid;not null;uniqueIndex:idx_doctor_user" json:"user_id"`
-	LicenseNumber    string    `gorm:"not null;size:100;uniqueIndex:idx_doctor_license" json:"license_number"`
-	Specialization   string    `gorm:"not null;size:100;index:idx_doctor_specialization" json:"specialization"`
-	Qualification    string    `gorm:"size:200" json:"qualification,omitempty"`
-	ExperienceYears  int       `gorm:"default:0" json:"experience_years"`
-	ConsultationFee  float64   `gorm:"type:decimal(10,2);default:0" json:"consultation_fee"`
-	Bio              string    `gorm:"type:text" json:"bio,omitempty"`
-	IsAvailable      bool      `gorm:"default:true;index:idx_doctor_available" json:"is_available"`
-	CreatedAt        time.Time `json:"created_at"`
-	UpdatedAt        time.Time `json:"updated_at"`
+	// Relations
+	Department Department `gorm:"foreignKey:DeptID;references:DeptID" json:"department,omitempty"`
 }
 
-func (DoctorProfile) TableName() string { return "doctor_profiles" }
+func (Doctor) TableName() string { return "doctors" }

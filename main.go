@@ -26,16 +26,20 @@ func main() {
 	auditRepo := repository.NewAuditRepo(db)
 	passwordResetRepo := repository.NewPasswordResetRepo(db)
 
+	dashRepo := repository.NewDashboardRepo(db)
+
 	// services
 	authSvc := service.NewAuthService(userRepo, auditRepo, passwordResetRepo, cfg)
+	dashSvc := service.NewDashboardService(dashRepo, userRepo)
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc)
+	dashH := handler.NewDashboardHandler(dashSvc)
 
 	// router
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
-		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:5173"},
+		AllowOrigins:     []string{"http://localhost:3000", "http://localhost:3002", "http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
@@ -43,6 +47,7 @@ func main() {
 
 	api := r.Group("/api")
 	{
+		// Auth routes
 		auth := api.Group("/auth")
 		{
 			auth.POST("/register", authH.Register)
@@ -51,6 +56,7 @@ func main() {
 			auth.POST("/verify-code", authH.VerifyCode)
 			auth.POST("/reset-password", authH.ResetPassword)
 			auth.GET("/me", middleware.JWTAuth(authSvc), authH.Me)
+			auth.POST("/logout", middleware.JWTAuth(authSvc), authH.Logout)
 		}
 		api.GET("/auth/encryption-key", func(c *gin.Context) {
 			c.JSON(200, gin.H{"key": cfg.AESKey})
@@ -58,6 +64,9 @@ func main() {
 		api.GET("/health", func(c *gin.Context) {
 			c.JSON(200, gin.H{"status": "ok"})
 		})
+
+		// Dashboard (JWT protected)
+		api.GET("/dashboard", middleware.JWTAuth(authSvc), dashH.GetDashboard)
 	}
 
 	log.Println("server starting on :8080")

@@ -5,7 +5,6 @@ import (
 
 	"apollo-backend/model"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -30,12 +29,12 @@ func (r *PasswordResetRepo) FindValidCode(email string, code string) (*model.Pas
 	return &pr, err
 }
 
-func (r *PasswordResetRepo) MarkUsed(id uuid.UUID) error {
+func (r *PasswordResetRepo) MarkUsed(id uint) error {
 	return r.DB.Model(&model.PasswordReset{}).Where("id = ?", id).Update("used", true).Error
 }
 
 // InvalidateAll marks all unused codes for this user as used.
-func (r *PasswordResetRepo) InvalidateAll(userID uuid.UUID) error {
+func (r *PasswordResetRepo) InvalidateAll(userID uint) error {
 	return r.DB.Model(&model.PasswordReset{}).
 		Where("user_id = ? AND used = false", userID).
 		Update("used", true).Error
