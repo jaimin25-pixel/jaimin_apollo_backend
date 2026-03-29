@@ -25,16 +25,18 @@ func main() {
 	userRepo := repository.NewUserRepo(db)
 	auditRepo := repository.NewAuditRepo(db)
 	passwordResetRepo := repository.NewPasswordResetRepo(db)
-
 	dashRepo := repository.NewDashboardRepo(db)
+	adminRepo := repository.NewAdminRepo(db)
 
 	// services
 	authSvc := service.NewAuthService(userRepo, auditRepo, passwordResetRepo, cfg)
 	dashSvc := service.NewDashboardService(dashRepo, userRepo)
+	adminSvc := service.NewAdminService(adminRepo, auditRepo, cfg)
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc)
 	dashH := handler.NewDashboardHandler(dashSvc)
+	adminH := handler.NewAdminHandler(adminSvc)
 
 	// router
 	r := gin.Default()
@@ -67,6 +69,60 @@ func main() {
 
 		// Dashboard (JWT protected)
 		api.GET("/dashboard", middleware.JWTAuth(authSvc), dashH.GetDashboard)
+
+		// Admin routes (JWT + admin role required)
+		admin := api.Group("/admin")
+		admin.Use(middleware.JWTAuth(authSvc), middleware.RequireRole("admin"))
+		{
+			// Dashboard
+			admin.GET("/dashboard", adminH.GetDashboard)
+
+			// Doctors
+			admin.GET("/doctors", adminH.ListDoctors)
+			admin.POST("/doctors", adminH.CreateDoctor)
+			admin.GET("/doctors/:id", adminH.GetDoctor)
+			admin.PUT("/doctors/:id", adminH.UpdateDoctor)
+			admin.PATCH("/doctors/:id/status", adminH.UpdateDoctorStatus)
+			admin.DELETE("/doctors/:id", adminH.DeleteDoctor)
+
+			// Departments
+			admin.GET("/departments", adminH.ListDepartments)
+			admin.POST("/departments", adminH.CreateDepartment)
+			admin.PUT("/departments/:id", adminH.UpdateDepartment)
+			admin.PATCH("/departments/:id/status", adminH.UpdateDepartmentStatus)
+			admin.DELETE("/departments/:id", adminH.DeleteDepartment)
+
+			// Staff
+			admin.GET("/staff", adminH.ListStaff)
+			admin.POST("/staff", adminH.CreateStaff)
+			admin.GET("/staff/:id", adminH.GetStaff)
+			admin.PUT("/staff/:id", adminH.UpdateStaff)
+			admin.PATCH("/staff/:id/status", adminH.UpdateStaffStatus)
+			admin.DELETE("/staff/:id", adminH.DeleteStaff)
+
+			// Pharmacists
+			admin.GET("/pharmacists", adminH.ListPharmacists)
+			admin.POST("/pharmacists", adminH.CreatePharmacist)
+			admin.PUT("/pharmacists/:id", adminH.UpdatePharmacist)
+
+			// Partner Pharmacies
+			admin.GET("/partner-pharmacies", adminH.ListPartnerPharmacies)
+			admin.POST("/partner-pharmacies", adminH.CreatePartnerPharmacy)
+			admin.PUT("/partner-pharmacies/:id", adminH.UpdatePartnerPharmacy)
+			admin.PATCH("/partner-pharmacies/:id/status", adminH.UpdatePartnerPharmacyStatus)
+
+			// Hospital Config
+			admin.GET("/config", adminH.GetConfig)
+			admin.PUT("/config", adminH.UpdateConfig)
+
+			// Reports
+			admin.GET("/reports/financial", adminH.FinancialReport)
+			admin.GET("/reports/occupancy", adminH.OccupancyReport)
+			admin.GET("/reports/prescriptions", adminH.PrescriptionReport)
+
+			// Export
+			admin.POST("/export", adminH.Export)
+		}
 	}
 
 	log.Println("server starting on :8080")

@@ -97,6 +97,9 @@ func migrate(db *gorm.DB) {
 		// Audit & Partners
 		&model.AuditLog{},
 		&model.PartnerPharmacy{},
+
+		// Hospital Config
+		&model.HospitalConfig{},
 	)
 	if err != nil {
 		log.Fatalf("migration failed: %v", err)
@@ -352,16 +355,28 @@ func addIndexes(db *gorm.DB) {
 func seed(db *gorm.DB) {
 	seedDepartments(db)
 	seedAdmin(db)
+	seedStaff(db)
 }
 
 func seedAdmin(db *gorm.DB) {
+	hash, _ := bcrypt.GenerateFromPassword([]byte("Admin@123"), 12)
+
 	var count int64
 	db.Model(&model.User{}).Where("email = ?", "admin@apollo.health").Count(&count)
+
 	if count > 0 {
+		// Update existing admin password
+		db.Model(&model.User{}).Where("email = ?", "admin@apollo.health").
+			Update("password_hash", string(hash))
+
+		// Also update admin table if exists
+		db.Model(&model.Admin{}).Where("email = ?", "admin@apollo.health").
+			Update("hashed_password", string(hash))
+
+		log.Println("updated default admin password: admin@apollo.health / Admin@123")
 		return
 	}
 
-	hash, _ := bcrypt.GenerateFromPassword([]byte("admin123"), 12)
 	admin := model.User{
 		Email:        "admin@apollo.health",
 		Username:     "admin",
@@ -383,13 +398,26 @@ func seedAdmin(db *gorm.DB) {
 		db.Create(&adminRow)
 	}
 
-	log.Println("seeded default admin: admin@apollo.health / admin123")
+	log.Println("seeded default admin: admin@apollo.health / Admin@123")
 }
 
 func seedDepartments(db *gorm.DB) {
 	var count int64
 	db.Model(&model.Department{}).Count(&count)
 	if count > 0 {
+		// Ensure the 3 role-based departments exist even if other departments were already seeded
+		roleDepts := []model.Department{
+			{Name: "Clinical Department", BedCount: 0, HasICU: false, Status: "active"},
+			{Name: "Administration Department", BedCount: 0, HasICU: false, Status: "active"},
+			{Name: "Support Services Department", BedCount: 0, HasICU: false, Status: "active"},
+		}
+		for i := range roleDepts {
+			var existing model.Department
+			if err := db.Where("name = ?", roleDepts[i].Name).First(&existing).Error; err != nil {
+				db.Create(&roleDepts[i])
+				log.Printf("seeded department: %s", roleDepts[i].Name)
+			}
+		}
 		return
 	}
 
@@ -414,10 +442,13 @@ func seedDepartments(db *gorm.DB) {
 		{Name: "Pathology", BedCount: 0, OTCount: 0, HasICU: false, Status: "active"},
 		{Name: "Emergency Medicine", BedCount: 20, HasICU: true, Status: "active"},
 		{Name: "General Surgery", BedCount: 30, OTCount: 4, HasICU: true, Status: "active"},
+		{Name: "Clinical Department", BedCount: 0, HasICU: false, Status: "active"},
+		{Name: "Administration Department", BedCount: 0, HasICU: false, Status: "active"},
+		{Name: "Support Services Department", BedCount: 0, HasICU: false, Status: "active"},
 	}
 
 	for i := range departments {
 		db.Create(&departments[i])
 	}
-	log.Println("seeded 20 departments")
+	log.Println("seeded 23 departments")
 }

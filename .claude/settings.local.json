@@ -75,10 +75,40 @@
       "Bash(\"/c/Program Files/PostgreSQL/16/bin/psql.exe\" -h localhost -U postgres -d hms -c \"SELECT tablename FROM pg_tables WHERE schemaname = ''public'' ORDER BY tablename;\")",
       "Bash(\"/c/Program Files/PostgreSQL/15/bin/psql.exe\" -h localhost -U postgres -d hms -c \"SELECT tablename FROM pg_tables WHERE schemaname = ''public'' ORDER BY tablename;\")",
       "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -U postgres -d hms -c \"SELECT tablename FROM pg_tables WHERE schemaname = ''public'' ORDER BY tablename;\")",
-      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -U postgres -d hms -c \"SELECT conname, conrelid::regclass AS table_name, confrelid::regclass AS ref_table FROM pg_constraint WHERE contype = ''f'' ORDER BY conrelid::regclass::text, conname;\")"
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -U postgres -d hms -c \"SELECT conname, conrelid::regclass AS table_name, confrelid::regclass AS ref_table FROM pg_constraint WHERE contype = ''f'' ORDER BY conrelid::regclass::text, conname;\")",
+      "Bash(find c:UsersJaiminDownloadsjaimin_apollo_frontend -type f -name *login*)",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -U postgres -d hms -c \"SELECT id, email, full_name, role FROM users;\")",
+      "Bash(curl -s -X POST http://localhost:8080/api/auth/register -H 'Content-Type: application/json' -d '{\"\"\"\"full_name\"\"\"\":\"\"\"\"Jaimin Rajput\"\"\"\",\"\"\"\"email\"\"\"\":\"\"\"\"jaiminrajput2526@gmail.com\"\"\"\",\"\"\"\"password\"\"\"\":\"\"\"\"jaimin123\"\"\"\",\"\"\"\"phone\"\"\"\":\"\"\"\"+91-0000000000\"\"\"\"}')",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -U postgres -d hms -c \"SELECT id, email FROM users WHERE email = ''jaiminrajput2526@gmail.com'';\")",
+      "Bash(PGPASSWORD=jaimin123 \"/c/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -U postgres -d hms -c \"UPDATE users SET password_hash = ''$2a$12$YgXwSDpey/riqP6eka1Ju.M1191GTbMyUja.8SegcAumfKOoM6k7m'' WHERE email = ''jaiminrajput2526@gmail.com'';\")",
+      "Bash(find /c/Users/Jaimin/Downloads/jaimin_apollo_frontend/src -type f \\\\\\(-name *.vue -o -name *.jsx -o -name *.js -o -name *.tsx -o -name *.ts \\\\\\))",
+      "Bash(find c:/Users/Jaimin/Downloads/jaimin_apollo_frontend/src -name types* -o -name *.d.ts)",
+      "Bash(findstr :8080)",
+      "Bash(taskkill /PID 5372 /F)",
+      "Bash(taskkill /PID 22584 /F)",
+      "Bash(cmd /c \"taskkill /PID 5372 /F & taskkill /PID 22584 /F\")",
+      "Bash(cmd /c \"netstat -ano | findstr :8080\")",
+      "Bash(cmd /c \"for /f \"\"tokens=5\"\" %a in \\(''netstat -ano ^| findstr :8080 ^| findstr LISTENING''\\) do taskkill /PID %a /F\")",
+      "Bash(cmd /c \"netstat -ano | findstr :8080 | findstr LISTENING\")",
+      "Bash(cmd /c \"netstat -ano | findstr 8080\")",
+      "Bash(cmd /c \"wmic process where \"\"name=''main.exe''\"\" get ProcessId,CommandLine 2>nul\")",
+      "Bash(cmd /c \"tasklist | findstr main.exe\")",
+      "Bash(cmd /c \"netstat -ano | findstr 8080 | findstr LISTEN\")",
+      "Bash(grep -E \"\\\\.\\(vue|js|ts\\)$\")",
+      "Bash(PGPASSWORD=jaimin123 psql -h localhost -p 5432 -U postgres -d hms -c \":*)",
+      "Bash(ls \"C:/Program Files \\(x86\\)/PostgreSQL/\")",
+      "Bash(PGPASSWORD=jaimin123 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -p 5432 -U postgres -d hms -c \"UPDATE departments SET hod_doctor_id = NULL; DELETE FROM pharmacists; DELETE FROM staff; DELETE FROM doctors;\")",
+      "Bash(PGPASSWORD=jaimin123 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -p 5432 -U postgres -d hms -c \"SELECT ''doctors'' AS tbl, COUNT\\(*\\) FROM doctors UNION ALL SELECT ''staff'', COUNT\\(*\\) FROM staff UNION ALL SELECT ''pharmacists'', COUNT\\(*\\) FROM pharmacists;\")",
+      "Read(//tmp/**)",
+      "Bash(pkill -f \"go run main.go\")",
+      "Bash(pkill -f \"apollo-backend\")",
+      "Bash(PGPASSWORD=jaimin123 \"C:/Program Files/PostgreSQL/18/bin/psql.exe\" -h localhost -p 5432 -U postgres -d hms -c \":*)",
+      "Bash(xargs grep:*)"
     ],
     "additionalDirectories": [
-      "C:\\Users\\Jaimin\\Downloads\\jaimin_apollo_backend\\cmd"
+      "C:\\Users\\Jaimin\\Downloads\\jaimin_apollo_backend\\cmd",
+      "\\tmp",
+      "c:\\Users\\Jaimin\\Downloads\\jaimin_apollo_frontend\\src\\views\\admin"
     ]
   }
 }
