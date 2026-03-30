@@ -72,6 +72,7 @@ func migrate(db *gorm.DB) {
 		&model.Admission{},
 		&model.Prescription{},
 		&model.PrescriptionItem{},
+		&model.ClinicalNote{},
 
 		// Pharmacy
 		&model.Medicine{},
@@ -199,6 +200,12 @@ func addForeignKeys(db *gorm.DB) {
 
 		// password_resets
 		{"password_resets", "user_id", "users", "id"},
+
+		// clinical_notes
+		{"clinical_notes", "patient_id", "patients", "patient_id"},
+		{"clinical_notes", "doctor_id", "doctors", "doctor_id"},
+		{"clinical_notes", "appt_id", "appointments", "appt_id"},
+		{"clinical_notes", "admission_id", "admissions", "admission_id"},
 	}
 
 	for _, fk := range fks {
@@ -343,6 +350,13 @@ func addIndexes(db *gorm.DB) {
 
 		// partner_pharmacies
 		`CREATE INDEX IF NOT EXISTS idx_partner_status ON partner_pharmacies(status)`,
+
+		// clinical_notes
+		`CREATE INDEX IF NOT EXISTS idx_clinicalnote_patient ON clinical_notes(patient_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_clinicalnote_doctor ON clinical_notes(doctor_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_clinicalnote_appt ON clinical_notes(appt_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_clinicalnote_admission ON clinical_notes(admission_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_clinicalnote_created ON clinical_notes(created_at)`,
 	}
 
 	for _, idx := range indexes {

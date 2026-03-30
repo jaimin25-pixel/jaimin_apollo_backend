@@ -27,16 +27,19 @@ func main() {
 	passwordResetRepo := repository.NewPasswordResetRepo(db)
 	dashRepo := repository.NewDashboardRepo(db)
 	adminRepo := repository.NewAdminRepo(db)
+	doctorRepo := repository.NewDoctorRepo(db)
 
 	// services
-	authSvc := service.NewAuthService(userRepo, auditRepo, passwordResetRepo, cfg)
+	authSvc := service.NewAuthService(userRepo, doctorRepo, auditRepo, passwordResetRepo, cfg)
 	dashSvc := service.NewDashboardService(dashRepo, userRepo)
 	adminSvc := service.NewAdminService(adminRepo, auditRepo, cfg)
+	doctorSvc := service.NewDoctorService(doctorRepo, auditRepo)
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc)
 	dashH := handler.NewDashboardHandler(dashSvc)
 	adminH := handler.NewAdminHandler(adminSvc)
+	doctorH := handler.NewDoctorHandler(doctorSvc)
 
 	// router
 	r := gin.Default()
@@ -122,6 +125,75 @@ func main() {
 
 			// Export
 			admin.POST("/export", adminH.Export)
+		}
+
+		// Doctor routes
+		doc := api.Group("/doctor")
+		doc.Use(middleware.JWTAuth(authSvc))
+		{
+			doc.GET("/dashboard",
+				middleware.RequireRole("doctor"),
+				doctorH.GetDashboard)
+
+			doc.GET("/appointments",
+				middleware.RequireRole("doctor", "admin"),
+				doctorH.ListAppointments)
+			doc.GET("/appointments/:id",
+				middleware.RequireRole("doctor", "admin"),
+				doctorH.GetAppointment)
+			doc.PATCH("/appointments/:id/status",
+				middleware.RequireRole("doctor"),
+				doctorH.UpdateAppointmentStatus)
+
+			doc.GET("/patients",
+				middleware.RequireRole("doctor", "admin"),
+				doctorH.ListPatients)
+			doc.GET("/patients/:id",
+				middleware.RequireRole("doctor", "admin"),
+				doctorH.GetPatientEHR)
+			doc.POST("/patients/:id/vitals",
+				middleware.RequireRole("doctor", "nurse"),
+				doctorH.RecordVital)
+			doc.POST("/patients/:id/clinical-notes",
+				middleware.RequireRole("doctor"),
+				doctorH.CreateClinicalNote)
+
+			doc.GET("/prescriptions",
+				middleware.RequireRole("doctor", "admin"),
+				doctorH.ListPrescriptions)
+			doc.POST("/prescriptions",
+				middleware.RequireRole("doctor"),
+				doctorH.CreatePrescription)
+			doc.GET("/prescriptions/:id",
+				middleware.RequireRole("doctor", "admin"),
+				doctorH.GetPrescription)
+
+			doc.GET("/lab-orders",
+				middleware.RequireRole("doctor"),
+				doctorH.ListLabOrders)
+			doc.POST("/lab-orders",
+				middleware.RequireRole("doctor"),
+				doctorH.CreateLabOrder)
+			doc.GET("/lab-orders/:id",
+				middleware.RequireRole("doctor"),
+				doctorH.GetLabOrder)
+
+			doc.GET("/radiology-orders",
+				middleware.RequireRole("doctor"),
+				doctorH.ListRadiologyOrders)
+			doc.POST("/radiology-orders",
+				middleware.RequireRole("doctor"),
+				doctorH.CreateRadiologyOrder)
+			doc.GET("/radiology-orders/:id",
+				middleware.RequireRole("doctor"),
+				doctorH.GetRadiologyOrder)
+
+			doc.POST("/admissions",
+				middleware.RequireRole("doctor"),
+				doctorH.CreateAdmission)
+			doc.PATCH("/admissions/:id/discharge",
+				middleware.RequireRole("doctor"),
+				doctorH.DischargeAdmission)
 		}
 	}
 

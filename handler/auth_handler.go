@@ -24,16 +24,13 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	user, tokens, err := h.authSvc.Login(input, c.ClientIP(), c.GetHeader("User-Agent"))
+	result, err := h.authSvc.Login(input, c.ClientIP(), c.GetHeader("User-Agent"))
 	if err != nil {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{
-		"user":   user,
-		"tokens": tokens,
-	})
+	c.JSON(http.StatusOK, result)
 }
 
 func (h *AuthHandler) Register(c *gin.Context) {
@@ -116,10 +113,10 @@ func (h *AuthHandler) Logout(c *gin.Context) {
 
 func (h *AuthHandler) Me(c *gin.Context) {
 	userID, _ := c.Get("userID")
-	user, err := h.authSvc.GetUserByID(userID.(uint))
+	result, err := h.authSvc.GetUserWithProfile(userID.(uint))
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "user not found"})
 		return
 	}
-	c.JSON(http.StatusOK, gin.H{"user": user})
+	c.JSON(http.StatusOK, result)
 }

@@ -8,7 +8,8 @@ type Vital struct {
 	VitalID               uint      `gorm:"primaryKey;autoIncrement" json:"vital_id"`
 	PatientID             uint      `gorm:"not null;index" json:"patient_id"`
 	AdmissionID           *uint     `gorm:"index" json:"admission_id,omitempty"`
-	NurseID               uint      `gorm:"not null;index" json:"nurse_id"`
+	NurseID               *uint     `gorm:"index" json:"nurse_id,omitempty"`
+	RecordedByRole        string    `gorm:"not null;size:20;default:'nurse'" json:"recorded_by_role"`
 	RecordedAt            time.Time `gorm:"not null;default:now()" json:"recorded_at"`
 	TemperatureC          *float64  `gorm:"type:decimal(4,1)" json:"temperature_c,omitempty"`
 	BloodPressureSystolic *int      `json:"blood_pressure_systolic,omitempty"`
@@ -23,7 +24,7 @@ type Vital struct {
 	// Relations
 	Patient   Patient    `gorm:"foreignKey:PatientID;references:PatientID" json:"patient,omitempty"`
 	Admission *Admission `gorm:"foreignKey:AdmissionID;references:AdmissionID" json:"admission,omitempty"`
-	Nurse     Staff      `gorm:"foreignKey:NurseID;references:StaffID" json:"nurse,omitempty"`
+	Nurse     *Staff     `gorm:"foreignKey:NurseID;references:StaffID" json:"nurse,omitempty"`
 }
 
 func (Vital) TableName() string { return "vitals" }

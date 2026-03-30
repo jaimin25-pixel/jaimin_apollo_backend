@@ -15,10 +15,11 @@ type Prescription struct {
 	CreatedAt   time.Time `gorm:"not null;default:now()" json:"created_at"`
 
 	// Relations
-	Doctor      Doctor       `gorm:"foreignKey:DoctorID;references:DoctorID" json:"doctor,omitempty"`
-	Patient     Patient      `gorm:"foreignKey:PatientID;references:PatientID" json:"patient,omitempty"`
-	Appointment *Appointment `gorm:"foreignKey:ApptID;references:ApptID" json:"appointment,omitempty"`
-	Admission   *Admission   `gorm:"foreignKey:AdmissionID;references:AdmissionID" json:"admission,omitempty"`
+	Doctor      Doctor             `gorm:"foreignKey:DoctorID;references:DoctorID" json:"doctor,omitempty"`
+	Patient     Patient            `gorm:"foreignKey:PatientID;references:PatientID" json:"patient,omitempty"`
+	Appointment *Appointment       `gorm:"foreignKey:ApptID;references:ApptID" json:"appointment,omitempty"`
+	Admission   *Admission         `gorm:"foreignKey:AdmissionID;references:AdmissionID" json:"admission,omitempty"`
+	Items       []PrescriptionItem `gorm:"foreignKey:RxID;references:RxID" json:"items,omitempty"`
 }
 
 func (Prescription) TableName() string { return "prescriptions" }

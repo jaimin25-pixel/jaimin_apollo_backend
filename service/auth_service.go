@@ -19,13 +19,14 @@ import (
 
 type AuthService struct {
 	userRepo          *repository.UserRepo
+	doctorRepo        *repository.DoctorRepo
 	auditRepo         *repository.AuditRepo
 	passwordResetRepo *repository.PasswordResetRepo
 	cfg               *config.Config
 }
 
-func NewAuthService(ur *repository.UserRepo, ar *repository.AuditRepo, prr *repository.PasswordResetRepo, cfg *config.Config) *AuthService {
-	return &AuthService{userRepo: ur, auditRepo: ar, passwordResetRepo: prr, cfg: cfg}
+func NewAuthService(ur *repository.UserRepo, dr *repository.DoctorRepo, ar *repository.AuditRepo, prr *repository.PasswordResetRepo, cfg *config.Config) *AuthService {
+	return &AuthService{userRepo: ur, doctorRepo: dr, auditRepo: ar, passwordResetRepo: prr, cfg: cfg}
 }
 
 func (s *AuthService) decryptPassword(encrypted string) (string, error) {
@@ -64,29 +65,67 @@ type LoginInput struct {
 	Password string `json:"password" binding:"required,min=6"`
 }
 
-func (s *AuthService) Login(input LoginInput, ip, ua string) (*model.User, *TokenPair, error) {
-	user, err := s.userRepo.FindByEmail(input.Email)
-	if err != nil {
-		return nil, nil, errors.New("invalid credentials")
-	}
+// LoginResult is returned by Login regardless of whether the caller is a
+// system admin (User) or a doctor (Doctor). Exactly one of User / Doctor is set.
+type LoginResult struct {
+	User   *model.User   `json:"user,omitempty"`
+	Doctor *model.Doctor `json:"doctor,omitempty"`
+	Tokens *TokenPair    `json:"tokens"`
+}
 
+func (s *AuthService) mapDoctorToUser(doc *model.Doctor) *model.User {
+	return &model.User{
+		ID:        uint(doc.DoctorID),
+		Email:     doc.Email,
+		Username:  strings.Split(doc.Email, "@")[0],
+		FullName:  doc.FullName,
+		Phone:     doc.Phone,
+		Role:      "doctor",
+		IsActive:  strings.ToLower(doc.Status) == "active",
+		CreatedAt: doc.CreatedAt,
+		UpdatedAt: doc.UpdatedAt,
+	}
+}
+
+func (s *AuthService) Login(input LoginInput, ip, ua string) (*LoginResult, error) {
 	password, _ := s.decryptPassword(input.Password)
-	if err := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); err != nil {
-		return nil, nil, errors.New("invalid credentials")
+
+	// Try the users table first (admin / legacy accounts).
+	user, err := s.userRepo.FindByEmail(input.Email)
+	if err == nil {
+		if bcryptErr := bcrypt.CompareHashAndPassword([]byte(user.PasswordHash), []byte(password)); bcryptErr != nil {
+			return nil, errors.New("invalid credentials")
+		}
+		tokens, err := s.generateTokens(user)
+		if err != nil {
+			return nil, err
+		}
+		_ = s.userRepo.UpdateLastLogin(user.ID)
+		_ = s.auditRepo.Log(&model.AuditLog{
+			UserID: user.ID, UserRole: user.Role, Action: "LOGIN",
+			TblName: "users", RecordID: user.ID, IPAddress: ip,
+		})
+		return &LoginResult{User: user, Tokens: tokens}, nil
 	}
 
-	tokens, err := s.generateTokens(user)
+	// Fallback: try the doctors table.
+	doc, err := s.doctorRepo.FindByEmail(input.Email)
 	if err != nil {
-		return nil, nil, err
+		return nil, errors.New("invalid credentials")
 	}
-
-	_ = s.userRepo.UpdateLastLogin(user.ID)
+	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(doc.HashedPassword), []byte(password)); bcryptErr != nil {
+		return nil, errors.New("invalid credentials")
+	}
+	tokens, err := s.generateTokensForDoctor(doc)
+	if err != nil {
+		return nil, err
+	}
 	_ = s.auditRepo.Log(&model.AuditLog{
-		UserID: user.ID, UserRole: user.Role, Action: "LOGIN",
-		TblName: "users", RecordID: user.ID, IPAddress: ip,
+		UserID: doc.DoctorID, UserRole: "doctor", Action: "LOGIN",
+		TblName: "doctors", RecordID: doc.DoctorID, IPAddress: ip,
 	})
-
-	return user, tokens, nil
+	doctorUser := s.mapDoctorToUser(doc)
+	return &LoginResult{User: doctorUser, Doctor: doc, Tokens: tokens}, nil
 }
 
 func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, error) {
@@ -132,8 +171,43 @@ func (s *AuthService) Logout(userID uint, ip, ua string) {
 	})
 }
 
+type GetMeResponse struct {
+	User   *model.User   `json:"user,omitempty"`
+	Doctor *model.Doctor `json:"doctor,omitempty"`
+}
+
 func (s *AuthService) GetUserByID(id uint) (*model.User, error) {
-	return s.userRepo.FindByID(id)
+	user, err := s.userRepo.FindByID(id)
+	if err == nil && user != nil {
+		return user, nil
+	}
+
+	doc, err := s.doctorRepo.FindByID(id)
+	if err == nil && doc != nil {
+		return s.mapDoctorToUser(doc), nil
+	}
+
+	return nil, errors.New("user not found")
+}
+
+// GetUserWithProfile returns both User/Doctor data with role-specific profile info
+func (s *AuthService) GetUserWithProfile(id uint) (*GetMeResponse, error) {
+	// Try users table first
+	user, err := s.userRepo.FindByID(id)
+	if err == nil && user != nil {
+		return &GetMeResponse{User: user}, nil
+	}
+
+	// Try doctors table
+	doc, err := s.doctorRepo.FindByID(id)
+	if err == nil && doc != nil {
+		return &GetMeResponse{
+			User:   s.mapDoctorToUser(doc),
+			Doctor: doc,
+		}, nil
+	}
+
+	return nil, errors.New("user not found")
 }
 
 func (s *AuthService) ValidateToken(tokenStr string) (*Claims, error) {
@@ -174,6 +248,42 @@ func (s *AuthService) generateTokens(user *model.User) (*TokenPair, error) {
 			ExpiresAt: jwt.NewNumericDate(refreshExp),
 			IssuedAt:  jwt.NewNumericDate(now),
 			Subject:   fmt.Sprintf("%d", user.ID),
+		},
+	}
+	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(s.cfg.JWTSecret))
+	if err != nil {
+		return nil, err
+	}
+
+	return &TokenPair{
+		AccessToken: accessToken, RefreshToken: refreshToken, ExpiresAt: accessExp.Unix(),
+	}, nil
+}
+
+func (s *AuthService) generateTokensForDoctor(doc *model.Doctor) (*TokenPair, error) {
+	now := time.Now()
+	accessExp := now.Add(time.Duration(s.cfg.JWTExpiryMinutes) * time.Minute)
+
+	accessClaims := Claims{
+		UserID: doc.DoctorID, Email: doc.Email, Role: "doctor",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(accessExp),
+			IssuedAt:  jwt.NewNumericDate(now),
+			Subject:   fmt.Sprintf("%d", doc.DoctorID),
+		},
+	}
+	accessToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, accessClaims).SignedString([]byte(s.cfg.JWTSecret))
+	if err != nil {
+		return nil, err
+	}
+
+	refreshExp := now.Add(time.Duration(s.cfg.RefreshExpiryDays) * 24 * time.Hour)
+	refreshClaims := Claims{
+		UserID: doc.DoctorID, Email: doc.Email, Role: "doctor",
+		RegisteredClaims: jwt.RegisteredClaims{
+			ExpiresAt: jwt.NewNumericDate(refreshExp),
+			IssuedAt:  jwt.NewNumericDate(now),
+			Subject:   fmt.Sprintf("%d", doc.DoctorID),
 		},
 	}
 	refreshToken, err := jwt.NewWithClaims(jwt.SigningMethodHS256, refreshClaims).SignedString([]byte(s.cfg.JWTSecret))
