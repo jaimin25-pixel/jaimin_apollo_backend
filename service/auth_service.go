@@ -20,13 +20,15 @@ import (
 type AuthService struct {
 	userRepo          *repository.UserRepo
 	doctorRepo        *repository.DoctorRepo
+	pharmacistRepo    *repository.PharmacistRepo
+	staffRepo         *repository.StaffRepo
 	auditRepo         *repository.AuditRepo
 	passwordResetRepo *repository.PasswordResetRepo
 	cfg               *config.Config
 }
 
-func NewAuthService(ur *repository.UserRepo, dr *repository.DoctorRepo, ar *repository.AuditRepo, prr *repository.PasswordResetRepo, cfg *config.Config) *AuthService {
-	return &AuthService{userRepo: ur, doctorRepo: dr, auditRepo: ar, passwordResetRepo: prr, cfg: cfg}
+func NewAuthService(ur *repository.UserRepo, dr *repository.DoctorRepo, pr *repository.PharmacistRepo, sr *repository.StaffRepo, ar *repository.AuditRepo, prr *repository.PasswordResetRepo, cfg *config.Config) *AuthService {
+	return &AuthService{userRepo: ur, doctorRepo: dr, pharmacistRepo: pr, staffRepo: sr, auditRepo: ar, passwordResetRepo: prr, cfg: cfg}
 }
 
 func (s *AuthService) decryptPassword(encrypted string) (string, error) {
@@ -87,6 +89,32 @@ func (s *AuthService) mapDoctorToUser(doc *model.Doctor) *model.User {
 	}
 }
 
+func (s *AuthService) mapPharmacistToUser(p *model.Pharmacist) *model.User {
+	return &model.User{
+		ID:        p.PharmacistID,
+		Email:     p.Email,
+		Username:  strings.Split(p.Email, "@")[0],
+		FullName:  p.FullName,
+		Phone:     p.Phone,
+		Role:      "pharmacist",
+		IsActive:  strings.ToLower(p.Status) == "active",
+		CreatedAt: p.CreatedAt,
+	}
+}
+
+func (s *AuthService) mapStaffToUser(st *model.Staff) *model.User {
+	return &model.User{
+		ID:        st.StaffID,
+		Email:     st.Email,
+		Username:  strings.Split(st.Email, "@")[0],
+		FullName:  st.FullName,
+		Role:      st.Role, // preserves "receptionist", "nurse", etc.
+		IsActive:  strings.ToLower(st.Status) == "active",
+		CreatedAt: st.CreatedAt,
+		UpdatedAt: st.UpdatedAt,
+	}
+}
+
 func (s *AuthService) Login(input LoginInput, ip, ua string) (*LoginResult, error) {
 	password, _ := s.decryptPassword(input.Password)
 
@@ -110,22 +138,56 @@ func (s *AuthService) Login(input LoginInput, ip, ua string) (*LoginResult, erro
 
 	// Fallback: try the doctors table.
 	doc, err := s.doctorRepo.FindByEmail(input.Email)
+	if err == nil {
+		if bcryptErr := bcrypt.CompareHashAndPassword([]byte(doc.HashedPassword), []byte(password)); bcryptErr != nil {
+			return nil, errors.New("invalid credentials")
+		}
+		tokens, err := s.generateTokensForDoctor(doc)
+		if err != nil {
+			return nil, err
+		}
+		_ = s.auditRepo.Log(&model.AuditLog{
+			UserID: doc.DoctorID, UserRole: "doctor", Action: "LOGIN",
+			TblName: "doctors", RecordID: doc.DoctorID, IPAddress: ip,
+		})
+		doctorUser := s.mapDoctorToUser(doc)
+		return &LoginResult{User: doctorUser, Doctor: doc, Tokens: tokens}, nil
+	}
+
+	// Fallback: try the pharmacists table.
+	pharm, err := s.pharmacistRepo.FindByEmail(input.Email)
+	if err == nil {
+		if bcryptErr := bcrypt.CompareHashAndPassword([]byte(pharm.HashedPassword), []byte(password)); bcryptErr != nil {
+			return nil, errors.New("invalid credentials")
+		}
+		tokens, err := s.generateTokens(s.mapPharmacistToUser(pharm))
+		if err != nil {
+			return nil, err
+		}
+		_ = s.auditRepo.Log(&model.AuditLog{
+			UserID: pharm.PharmacistID, UserRole: "pharmacist", Action: "LOGIN",
+			TblName: "pharmacists", RecordID: pharm.PharmacistID, IPAddress: ip,
+		})
+		return &LoginResult{User: s.mapPharmacistToUser(pharm), Tokens: tokens}, nil
+	}
+
+	// Fallback: try the staff table (receptionists, nurses, lab technicians, etc.)
+	staff, err := s.staffRepo.FindByEmail(input.Email)
 	if err != nil {
 		return nil, errors.New("invalid credentials")
 	}
-	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(doc.HashedPassword), []byte(password)); bcryptErr != nil {
+	if bcryptErr := bcrypt.CompareHashAndPassword([]byte(staff.HashedPassword), []byte(password)); bcryptErr != nil {
 		return nil, errors.New("invalid credentials")
 	}
-	tokens, err := s.generateTokensForDoctor(doc)
+	tokens, err := s.generateTokens(s.mapStaffToUser(staff))
 	if err != nil {
 		return nil, err
 	}
 	_ = s.auditRepo.Log(&model.AuditLog{
-		UserID: doc.DoctorID, UserRole: "doctor", Action: "LOGIN",
-		TblName: "doctors", RecordID: doc.DoctorID, IPAddress: ip,
+		UserID: staff.StaffID, UserRole: staff.Role, Action: "LOGIN",
+		TblName: "staff", RecordID: staff.StaffID, IPAddress: ip,
 	})
-	doctorUser := s.mapDoctorToUser(doc)
-	return &LoginResult{User: doctorUser, Doctor: doc, Tokens: tokens}, nil
+	return &LoginResult{User: s.mapStaffToUser(staff), Tokens: tokens}, nil
 }
 
 func (s *AuthService) Register(input RegisterInput) (*model.User, *TokenPair, error) {
@@ -187,6 +249,16 @@ func (s *AuthService) GetUserByID(id uint) (*model.User, error) {
 		return s.mapDoctorToUser(doc), nil
 	}
 
+	pharm, err := s.pharmacistRepo.FindByID(id)
+	if err == nil && pharm != nil {
+		return s.mapPharmacistToUser(pharm), nil
+	}
+
+	staff, err := s.staffRepo.FindByID(id)
+	if err == nil && staff != nil {
+		return s.mapStaffToUser(staff), nil
+	}
+
 	return nil, errors.New("user not found")
 }
 
@@ -205,6 +277,18 @@ func (s *AuthService) GetUserWithProfile(id uint) (*GetMeResponse, error) {
 			User:   s.mapDoctorToUser(doc),
 			Doctor: doc,
 		}, nil
+	}
+
+	// Try pharmacists table
+	pharm, err := s.pharmacistRepo.FindByID(id)
+	if err == nil && pharm != nil {
+		return &GetMeResponse{User: s.mapPharmacistToUser(pharm)}, nil
+	}
+
+	// Try staff table
+	staff, err := s.staffRepo.FindByID(id)
+	if err == nil && staff != nil {
+		return &GetMeResponse{User: s.mapStaffToUser(staff)}, nil
 	}
 
 	return nil, errors.New("user not found")

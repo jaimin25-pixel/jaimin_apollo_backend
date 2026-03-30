@@ -28,18 +28,26 @@ func main() {
 	dashRepo := repository.NewDashboardRepo(db)
 	adminRepo := repository.NewAdminRepo(db)
 	doctorRepo := repository.NewDoctorRepo(db)
+	pharmacistRepo := repository.NewPharmacistRepo(db)
+	pharmacyRepo := repository.NewPharmacyRepo(db)
+	staffRepo := repository.NewStaffRepo(db)
+	receptionistRepo := repository.NewReceptionistRepo(db)
 
 	// services
-	authSvc := service.NewAuthService(userRepo, doctorRepo, auditRepo, passwordResetRepo, cfg)
+	authSvc := service.NewAuthService(userRepo, doctorRepo, pharmacistRepo, staffRepo, auditRepo, passwordResetRepo, cfg)
+	receptionistSvc := service.NewReceptionistService(receptionistRepo, auditRepo)
 	dashSvc := service.NewDashboardService(dashRepo, userRepo)
 	adminSvc := service.NewAdminService(adminRepo, auditRepo, cfg)
 	doctorSvc := service.NewDoctorService(doctorRepo, auditRepo)
+	pharmacySvc := service.NewPharmacyService(pharmacyRepo)
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc)
 	dashH := handler.NewDashboardHandler(dashSvc)
 	adminH := handler.NewAdminHandler(adminSvc)
 	doctorH := handler.NewDoctorHandler(doctorSvc)
+	pharmacyH := handler.NewPharmacyHandler(pharmacySvc)
+	receptionistH := handler.NewReceptionistHandler(receptionistSvc)
 
 	// router
 	r := gin.Default()
@@ -194,6 +202,109 @@ func main() {
 			doc.PATCH("/admissions/:id/discharge",
 				middleware.RequireRole("doctor"),
 				doctorH.DischargeAdmission)
+		}
+
+		// Pharmacy routes (JWT + (pharmacist or admin) role required)
+		pharmacy := api.Group("/pharmacy")
+		pharmacy.Use(middleware.JWTAuth(authSvc), middleware.RequireRole("pharmacist", "admin"))
+		{
+			// Dashboard
+			pharmacy.GET("/dashboard", pharmacyH.GetDashboard)
+
+			// Prescriptions
+			pharmacy.GET("/prescriptions", pharmacyH.ListPrescriptions)
+			pharmacy.GET("/prescriptions/:id", pharmacyH.GetPrescription)
+			pharmacy.PATCH("/prescriptions/:id/dispense", middleware.RequireRole("pharmacist"), pharmacyH.DispensePrescription)
+			pharmacy.PATCH("/prescriptions/:id/cancel", pharmacyH.CancelPrescription)
+
+			// Medicines
+			pharmacy.GET("/medicines", pharmacyH.ListMedicines)
+			pharmacy.POST("/medicines", pharmacyH.CreateMedicine)
+			pharmacy.GET("/medicines/:id", pharmacyH.GetMedicine)
+			pharmacy.PUT("/medicines/:id", pharmacyH.UpdateMedicine)
+
+			// Medicine Batches
+			pharmacy.GET("/medicines/:id/batches", pharmacyH.ListBatches)
+			pharmacy.POST("/medicines/:id/batches", middleware.RequireRole("pharmacist"), pharmacyH.CreateBatch)
+
+			// Stock Adjustments
+			pharmacy.POST("/stock/adjust", middleware.RequireRole("pharmacist"), pharmacyH.AdjustStock)
+
+			// Alerts
+			pharmacy.GET("/alerts/low-stock", pharmacyH.GetLowStockAlerts)
+			pharmacy.GET("/alerts/expiring", pharmacyH.GetExpiringAlerts)
+
+			// Partner Pharmacies
+			pharmacy.GET("/partner-pharmacies", pharmacyH.ListPartnerPharmacies)
+
+			// Transfer Requests
+			pharmacy.POST("/transfer-requests", middleware.RequireRole("pharmacist"), pharmacyH.CreateTransferRequest)
+			pharmacy.GET("/transfer-requests", pharmacyH.ListTransferRequests)
+			pharmacy.PATCH("/transfer-requests/:id", pharmacyH.UpdateTransferRequest)
+		}
+
+		// Receptionist routes under /api/v1
+		v1 := api.Group("/v1")
+		v1.Use(middleware.JWTAuth(authSvc))
+		{
+			// Dashboard
+			v1.GET("/receptionist/dashboard",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.GetDashboard)
+
+			// Patient Management
+			v1.POST("/patient/register",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.RegisterPatient)
+			v1.GET("/patient/search",
+				middleware.RequireRole("receptionist", "admin", "doctor"),
+				receptionistH.SearchPatients)
+			v1.GET("/patient/:patient_id",
+				middleware.RequireRole("receptionist", "admin", "doctor"),
+				receptionistH.GetPatient)
+			v1.PATCH("/patient/:patient_id/contact",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.UpdatePatientContact)
+			v1.GET("/patient/:patient_id/registration-card",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.GetPatientRegistrationCard)
+
+			// Appointments — walkin MUST be before /:appt_id to avoid Gin routing conflict
+			v1.POST("/appointments/walkin",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.WalkIn)
+			v1.POST("/appointments",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.BookAppointment)
+			v1.GET("/appointments",
+				middleware.RequireRole("receptionist", "admin", "doctor"),
+				receptionistH.ListAppointments)
+			v1.GET("/appointments/:appt_id",
+				middleware.RequireRole("receptionist", "admin", "doctor"),
+				receptionistH.GetAppointment)
+			v1.PATCH("/appointments/:appt_id/reschedule",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.RescheduleAppointment)
+			v1.PATCH("/appointments/:appt_id/cancel",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.CancelAppointment)
+			v1.POST("/appointments/:appt_id/checkin",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.CheckInAppointment)
+			v1.GET("/appointments/:appt_id/slip",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.GetAppointmentSlip)
+
+			// Visitor Log
+			v1.POST("/visitors",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.LogVisitor)
+			v1.GET("/visitors",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.ListVisitors)
+			v1.PATCH("/visitors/:visitor_id/checkout",
+				middleware.RequireRole("receptionist", "admin"),
+				receptionistH.CheckoutVisitor)
 		}
 	}
 
