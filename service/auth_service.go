@@ -63,6 +63,11 @@ type RegisterInput struct {
 	Phone    string `json:"phone"`
 }
 
+type UpdateProfileInput struct {
+	FullName string `json:"full_name"`
+	Phone    string `json:"phone"`
+}
+
 type LoginInput struct {
 	Email    string `json:"email" binding:"required,email"`
 	Password string `json:"password" binding:"required,min=6"`
@@ -515,4 +520,22 @@ func generateRandomCode() (string, error) {
 		return "", err
 	}
 	return fmt.Sprintf("%06d", n.Int64()), nil
+}
+
+func (s *AuthService) UpdateProfile(id uint, role string, input UpdateProfileInput) error {
+	db := s.userRepo.DB
+	switch role {
+	case "admin":
+		return db.Table("users").Where("id = ?", id).Updates(map[string]interface{}{"full_name": input.FullName, "phone": input.Phone}).Error
+	case "doctor":
+		return db.Table("doctors").Where("doctor_id = ?", id).Updates(map[string]interface{}{"full_name": input.FullName, "phone": input.Phone}).Error
+	case "pharmacist":
+		return db.Table("pharmacists").Where("pharmacist_id = ?", id).Updates(map[string]interface{}{"full_name": input.FullName, "phone": input.Phone}).Error
+	case "receptionist", "nurse", "lab_technician", "radiologist", "hr_manager", "billing_staff":
+		return db.Table("staff").Where("staff_id = ?", id).Updates(map[string]interface{}{"full_name": input.FullName, "phone": input.Phone}).Error
+	case "patient":
+		return db.Table("patients").Where("patient_id = ?", id).Updates(map[string]interface{}{"full_name": input.FullName, "contact_number": input.Phone}).Error
+	default:
+		return errors.New("unknown role")
+	}
 }

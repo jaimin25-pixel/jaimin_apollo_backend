@@ -120,3 +120,21 @@ func (h *AuthHandler) Me(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, result)
 }
+
+func (h *AuthHandler) UpdateProfile(c *gin.Context) {
+	userID, _ := c.Get("userID")
+	role, _ := c.Get("userRole")
+
+	var input service.UpdateProfileInput
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+
+	if err := h.authSvc.UpdateProfile(userID.(uint), role.(string), input); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to update profile"})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"message": "profile updated successfully"})
+}

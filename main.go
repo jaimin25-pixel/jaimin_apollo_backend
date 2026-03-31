@@ -52,6 +52,12 @@ func main() {
 	receptionistH := handler.NewReceptionistHandler(receptionistSvc)
 	patientH := handler.NewPatientHandler(patientSvc)
 
+	nursingH := handler.NewNursingHandler(service.NewNursingService(repository.NewNursingRepo(db)))
+	labH := handler.NewLabHandler(service.NewLabService(repository.NewLabRepo(db)))
+	otH := handler.NewOTHandler(service.NewOTService(repository.NewOTRepo(db)))
+	hrH := handler.NewHRHandler(service.NewHRService(repository.NewHRRepo(db)))
+	financeH := handler.NewFinanceHandler(service.NewFinanceService(repository.NewFinanceRepo(db)))
+
 	// router
 	r := gin.Default()
 	r.Use(cors.New(cors.Config{
@@ -72,6 +78,7 @@ func main() {
 			auth.POST("/verify-code", authH.VerifyCode)
 			auth.POST("/reset-password", authH.ResetPassword)
 			auth.GET("/me", middleware.JWTAuth(authSvc), authH.Me)
+			auth.PUT("/profile", middleware.JWTAuth(authSvc), authH.UpdateProfile)
 			auth.POST("/logout", middleware.JWTAuth(authSvc), authH.Logout)
 		}
 		api.GET("/auth/encryption-key", func(c *gin.Context) {
@@ -368,6 +375,98 @@ func main() {
 			patient.GET("/:id/invoices",
 				middleware.RequireRole("receptionist", "admin", "patient"),
 				patientH.ListInvoices)
+		}
+
+		// Nursing Module
+		nursing := api.Group("/nursing")
+		nursing.Use(middleware.JWTAuth(authSvc), middleware.RequireRole("nurse", "admin"))
+		{
+			nursing.GET("/dashboard", nursingH.GetDashboard)
+			nursing.GET("/wards", nursingH.ListWards)
+			nursing.GET("/wards/:id/beds", nursingH.GetBeds)
+			nursing.PATCH("/beds/:id/status", nursingH.UpdateBedStatus)
+			nursing.POST("/beds/transfer", nursingH.TransferBedRequest)
+			nursing.PATCH("/beds/transfer/:id/confirm", nursingH.ConfirmTransfer)
+			nursing.POST("/beds/:id/housekeeping", nursingH.MarkBedHousekeeping)
+			nursing.GET("/patients/:id/vitals", nursingH.ListVitals)
+			nursing.POST("/patients/:id/vitals", nursingH.RecordVital)
+			nursing.GET("/patients/:id/mar", nursingH.GetMAR)
+			nursing.PATCH("/patients/:id/mar/:item_id", nursingH.UpdateMARStatus)
+			nursing.POST("/patients/:id/nursing-notes", nursingH.AddNursingNote)
+		}
+
+		// Lab & Radiology Module
+		lab := api.Group("/lab")
+		lab.Use(middleware.JWTAuth(authSvc), middleware.RequireRole("lab_technician", "radiologist", "admin"))
+		{
+			lab.GET("/dashboard", labH.GetDashboard)
+			lab.GET("/tests", labH.ListTests)
+			lab.POST("/tests", middleware.RequireRole("admin"), labH.CreateTest)
+			lab.PUT("/tests/:id", middleware.RequireRole("admin"), labH.UpdateTest)
+			lab.GET("/orders", labH.ListLabOrders)
+			lab.GET("/orders/:id", labH.GetLabOrder)
+			lab.PATCH("/orders/:id/collect", labH.CollectSample)
+			lab.PATCH("/orders/:id/result", labH.UploadResult)
+			lab.PATCH("/orders/:id/cancel", labH.CancelLabOrder)
+			
+			lab.GET("/radiology-orders", labH.ListRadiologyOrders)
+			lab.GET("/radiology-orders/:id", labH.GetRadiologyOrder)
+			lab.POST("/radiology-orders/:id/report", labH.UploadRadiologyReport)
+			lab.PATCH("/radiology-orders/:id/images", labH.AttachRadiologyImage)
+		}
+
+		// Operation Theatre Module
+		ot := api.Group("/ot")
+		ot.Use(middleware.JWTAuth(authSvc), middleware.RequireRole("doctor", "nurse", "admin"))
+		{
+			ot.GET("/dashboard", otH.GetDashboard)
+			ot.GET("/schedules", otH.ListSchedules)
+			ot.POST("/schedules", middleware.RequireRole("doctor", "admin"), otH.CreateSchedule)
+			ot.GET("/schedules/:id", otH.GetSchedule)
+			ot.PUT("/schedules/:id", middleware.RequireRole("doctor", "admin"), otH.UpdateSchedule)
+			ot.PATCH("/schedules/:id/status", otH.AdvanceStatus)
+			ot.DELETE("/schedules/:id", middleware.RequireRole("doctor", "admin"), otH.CancelSchedule)
+			ot.PATCH("/schedules/:id/notes", otH.AddNotes)
+			ot.PATCH("/rooms/:id/sterilize", middleware.RequireRole("nurse", "admin"), otH.SterilizeRoom)
+			ot.GET("/rooms", otH.ListRooms)
+		}
+
+		// HR & Staff Module
+		hr := api.Group("/hr")
+		hr.Use(middleware.JWTAuth(authSvc))
+		{
+			hr.GET("/dashboard", middleware.RequireRole("hr_manager", "admin"), hrH.GetDashboard)
+			hr.GET("/staff", middleware.RequireRole("hr_manager", "admin"), hrH.ListStaff)
+			hr.POST("/staff", middleware.RequireRole("hr_manager", "admin"), hrH.CreateStaff)
+			hr.PUT("/staff/:id", middleware.RequireRole("hr_manager", "admin"), hrH.UpdateStaff)
+			
+			hr.GET("/attendance", middleware.RequireRole("hr_manager", "admin"), hrH.ListAttendance)
+			hr.POST("/attendance/clock-in", middleware.RequireRole("hr_manager", "admin", "nurse", "receptionist", "pharmacist"), hrH.ClockIn)
+			hr.POST("/attendance/clock-out", middleware.RequireRole("hr_manager", "admin", "nurse", "receptionist", "pharmacist"), hrH.ClockOut)
+			
+			hr.GET("/leaves", middleware.RequireRole("hr_manager", "admin"), hrH.ListLeaves)
+			hr.POST("/leaves", middleware.RequireRole("hr_manager", "admin", "nurse", "receptionist", "pharmacist"), hrH.ApplyLeave)
+			hr.PATCH("/leaves/:id/status", middleware.RequireRole("hr_manager", "admin"), hrH.ProcessLeave)
+			
+			hr.GET("/payroll", middleware.RequireRole("hr_manager", "admin"), hrH.ListPayroll)
+			hr.POST("/payroll/generate", middleware.RequireRole("hr_manager", "admin"), hrH.GeneratePayroll)
+		}
+
+		// Finance & Insurance Module
+		finance := api.Group("/finance")
+		finance.Use(middleware.JWTAuth(authSvc), middleware.RequireRole("billing_staff", "admin"))
+		{
+			finance.GET("/dashboard", financeH.GetDashboard)
+			finance.GET("/invoices", financeH.ListInvoices)
+			finance.POST("/invoices", financeH.CreateInvoice)
+			finance.GET("/invoices/:id", financeH.GetInvoice)
+			finance.PATCH("/invoices/:id/status", financeH.UpdateInvoiceStatus)
+			
+			finance.GET("/insurance-claims", financeH.ListClaims)
+			finance.POST("/insurance-claims", financeH.CreateClaim)
+			finance.PATCH("/insurance-claims/:id/status", financeH.UpdateClaimStatus)
+			
+			finance.GET("/ledger", financeH.ListLedger)
 		}
 	}
 

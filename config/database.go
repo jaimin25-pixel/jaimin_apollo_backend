@@ -88,14 +88,19 @@ func migrate(db *gorm.DB) {
 		// OT & Nursing
 		&model.OTSchedule{},
 		&model.Vital{},
+		&model.NursingNote{},
+		&model.MedicationAdminRecord{},
+		&model.BedTransferRequest{},
 
 		// Finance
 		&model.Invoice{},
 		&model.InsuranceClaim{},
+		&model.LedgerEntry{},
 
 		// HR
 		&model.StaffShift{},
 		&model.LeaveRequest{},
+		&model.Payroll{},
 
 		// Audit & Partners
 		&model.AuditLog{},
@@ -185,6 +190,24 @@ func addForeignKeys(db *gorm.DB) {
 		{"vitals", "admission_id", "admissions", "admission_id"},
 		{"vitals", "nurse_id", "staff", "staff_id"},
 
+		// nursing_notes
+		{"nursing_notes", "patient_id", "patients", "patient_id"},
+		{"nursing_notes", "admission_id", "admissions", "admission_id"},
+		{"nursing_notes", "nurse_id", "staff", "staff_id"},
+
+		// medication_admin_records
+		{"medication_admin_records", "patient_id", "patients", "patient_id"},
+		{"medication_admin_records", "admission_id", "admissions", "admission_id"},
+		{"medication_admin_records", "rx_item_id", "prescription_items", "rx_item_id"},
+		{"medication_admin_records", "nurse_id", "staff", "staff_id"},
+
+		// bed_transfer_requests
+		{"bed_transfer_requests", "patient_id", "patients", "patient_id"},
+		{"bed_transfer_requests", "from_bed_id", "beds", "bed_id"},
+		{"bed_transfer_requests", "to_bed_id", "beds", "bed_id"},
+		{"bed_transfer_requests", "requested_by", "staff", "staff_id"},
+		{"bed_transfer_requests", "confirmed_by", "staff", "staff_id"},
+
 		// invoices
 		{"invoices", "patient_id", "patients", "patient_id"},
 		{"invoices", "admission_id", "admissions", "admission_id"},
@@ -196,12 +219,19 @@ func addForeignKeys(db *gorm.DB) {
 		{"insurance_claims", "invoice_id", "invoices", "invoice_id"},
 		{"insurance_claims", "patient_id", "patients", "patient_id"},
 
+		// ledger_entries
+		{"ledger_entries", "recorded_by", "staff", "staff_id"},
+
 		// staff_shifts
 		{"staff_shifts", "staff_id", "staff", "staff_id"},
 
 		// leave_requests
 		{"leave_requests", "staff_id", "staff", "staff_id"},
 		{"leave_requests", "approved_by", "staff", "staff_id"},
+
+		// payrolls
+		{"payrolls", "staff_id", "staff", "staff_id"},
+		{"payrolls", "generated_by", "users", "id"},
 
 		// password_resets
 		{"password_resets", "user_id", "users", "id"},
@@ -325,6 +355,20 @@ func addIndexes(db *gorm.DB) {
 		`CREATE INDEX IF NOT EXISTS idx_vital_recorded ON vitals(recorded_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_vital_critical ON vitals(is_critical)`,
 
+		// nursing_notes
+		`CREATE INDEX IF NOT EXISTS idx_nnote_patient ON nursing_notes(patient_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_nnote_nurse ON nursing_notes(nurse_id)`,
+
+		// medication_admin_records
+		`CREATE INDEX IF NOT EXISTS idx_mar_patient ON medication_admin_records(patient_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_mar_rx_item ON medication_admin_records(rx_item_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_mar_nurse ON medication_admin_records(nurse_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_mar_scheduled ON medication_admin_records(scheduled_at)`,
+
+		// bed_transfer_requests
+		`CREATE INDEX IF NOT EXISTS idx_btransfer_patient ON bed_transfer_requests(patient_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_btransfer_status ON bed_transfer_requests(status)`,
+
 		// invoices
 		`CREATE INDEX IF NOT EXISTS idx_invoice_patient ON invoices(patient_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_invoice_status ON invoices(status)`,
@@ -335,6 +379,10 @@ func addIndexes(db *gorm.DB) {
 		`CREATE INDEX IF NOT EXISTS idx_claim_patient ON insurance_claims(patient_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_claim_status ON insurance_claims(status)`,
 
+		// ledger_entries
+		`CREATE INDEX IF NOT EXISTS idx_ledger_type ON ledger_entries(transaction_type)`,
+		`CREATE INDEX IF NOT EXISTS idx_ledger_recorded ON ledger_entries(recorded_at)`,
+
 		// staff_shifts
 		`CREATE INDEX IF NOT EXISTS idx_shift_staff ON staff_shifts(staff_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_shift_date ON staff_shifts(shift_date)`,
@@ -344,6 +392,11 @@ func addIndexes(db *gorm.DB) {
 		`CREATE INDEX IF NOT EXISTS idx_leave_staff ON leave_requests(staff_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_leave_status ON leave_requests(status)`,
 		`CREATE INDEX IF NOT EXISTS idx_leave_dates ON leave_requests(from_date, to_date)`,
+
+		// payrolls
+		`CREATE INDEX IF NOT EXISTS idx_payroll_staff ON payrolls(staff_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_payroll_period ON payrolls(month, year)`,
+		`CREATE INDEX IF NOT EXISTS idx_payroll_status ON payrolls(status)`,
 
 		// audit_logs
 		`CREATE INDEX IF NOT EXISTS idx_audit_user ON audit_logs(user_id)`,
