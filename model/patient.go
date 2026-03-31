@@ -6,6 +6,8 @@ import "time"
 type Patient struct {
 	PatientID             uint      `gorm:"primaryKey;autoIncrement" json:"patient_id"`
 	PatCode               string    `gorm:"uniqueIndex;not null;size:20" json:"pat_code"`
+	Email                 string    `gorm:"uniqueIndex;size:255" json:"email,omitempty"`
+	HashedPassword        string    `gorm:"size:255" json:"-"`
 	FullName              string    `gorm:"not null;size:150" json:"full_name"`
 	DateOfBirth           time.Time `gorm:"type:date;not null" json:"date_of_birth"`
 	Gender                string    `gorm:"not null;size:10" json:"gender"`

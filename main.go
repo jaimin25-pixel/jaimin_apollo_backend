@@ -32,14 +32,16 @@ func main() {
 	pharmacyRepo := repository.NewPharmacyRepo(db)
 	staffRepo := repository.NewStaffRepo(db)
 	receptionistRepo := repository.NewReceptionistRepo(db)
+	patientRepo := repository.NewPatientRepo(db)
 
 	// services
-	authSvc := service.NewAuthService(userRepo, doctorRepo, pharmacistRepo, staffRepo, auditRepo, passwordResetRepo, cfg)
+	authSvc := service.NewAuthService(userRepo, doctorRepo, pharmacistRepo, staffRepo, patientRepo, auditRepo, passwordResetRepo, cfg)
 	receptionistSvc := service.NewReceptionistService(receptionistRepo, auditRepo)
 	dashSvc := service.NewDashboardService(dashRepo, userRepo)
 	adminSvc := service.NewAdminService(adminRepo, auditRepo, cfg)
 	doctorSvc := service.NewDoctorService(doctorRepo, auditRepo)
 	pharmacySvc := service.NewPharmacyService(pharmacyRepo)
+	patientSvc := service.NewPatientService(patientRepo, auditRepo)
 
 	// handlers
 	authH := handler.NewAuthHandler(authSvc)
@@ -48,6 +50,7 @@ func main() {
 	doctorH := handler.NewDoctorHandler(doctorSvc)
 	pharmacyH := handler.NewPharmacyHandler(pharmacySvc)
 	receptionistH := handler.NewReceptionistHandler(receptionistSvc)
+	patientH := handler.NewPatientHandler(patientSvc)
 
 	// router
 	r := gin.Default()
@@ -305,6 +308,66 @@ func main() {
 			v1.PATCH("/visitors/:visitor_id/checkout",
 				middleware.RequireRole("receptionist", "admin"),
 				receptionistH.CheckoutVisitor)
+		}
+
+		// Patient Module routes (separate from receptionist /api/v1/patient)
+		patient := api.Group("/patient")
+		patient.Use(middleware.JWTAuth(authSvc))
+		{
+			// Search — any clinical role
+			patient.GET("/search",
+				middleware.RequireRole("receptionist", "doctor", "nurse", "admin", "patient"),
+				patientH.SearchPatients)
+
+			// Registration — reception/admin only
+			patient.POST("/register",
+				middleware.RequireRole("receptionist", "admin"),
+				patientH.RegisterPatient)
+
+			// Single patient
+			patient.GET("/:id",
+				middleware.RequireRole("receptionist", "doctor", "nurse", "admin", "patient"),
+				patientH.GetPatient)
+
+			patient.PUT("/:id",
+				middleware.RequireRole("receptionist", "admin"),
+				patientH.UpdatePatient)
+
+			// Appointments
+			patient.GET("/:id/appointments",
+				middleware.RequireRole("receptionist", "doctor", "admin", "patient"),
+				patientH.ListAppointments)
+
+			patient.POST("/:id/appointments",
+				middleware.RequireRole("receptionist", "doctor"),
+				patientH.BookAppointment)
+
+			patient.PATCH("/:id/appointments/:appt_id",
+				middleware.RequireRole("receptionist", "doctor"),
+				patientH.UpdateAppointment)
+
+			patient.PATCH("/:id/appointments/:appt_id/checkin",
+				middleware.RequireRole("receptionist"),
+				patientH.CheckInAppointment)
+
+			// Admissions (read-only from patient module)
+			patient.GET("/:id/admissions",
+				middleware.RequireRole("doctor", "nurse", "admin", "patient"),
+				patientH.ListAdmissions)
+
+			patient.GET("/:id/admissions/:adm_id",
+				middleware.RequireRole("doctor", "nurse", "admin", "patient"),
+				patientH.GetAdmission)
+
+			// EHR — doctors and admin only
+			patient.GET("/:id/ehr",
+				middleware.RequireRole("doctor", "admin", "patient"),
+				patientH.GetFullEHR)
+
+			// Invoices — receptionist (billing_staff alias) and admin
+			patient.GET("/:id/invoices",
+				middleware.RequireRole("receptionist", "admin", "patient"),
+				patientH.ListInvoices)
 		}
 	}
 

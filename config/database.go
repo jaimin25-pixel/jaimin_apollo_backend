@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"log"
+	"strings"
 	"time"
 
 	"apollo-backend/model"
@@ -379,6 +380,321 @@ func seed(db *gorm.DB) {
 	seedAdmin(db)
 	seedStaff(db)
 	seedMedicines(db)
+	seedPatients(db)
+}
+
+// seedPatients inserts demo patients, OPD appointments, IPD admissions, and invoices.
+// Idempotent: only runs when the patients table is empty.
+func seedPatients(db *gorm.DB) {
+	var count int64
+	db.Model(&model.Patient{}).Count(&count)
+	hash, _ := bcrypt.GenerateFromPassword([]byte("Patient@123"), 12)
+	hashedPwd := string(hash)
+
+	if count > 0 {
+		// Backfill existing patients with email/password if empty
+		db.Exec("UPDATE patients SET email = LOWER(REPLACE(full_name, ' ', '.')) || '@patient.apollo.health', hashed_password = ? WHERE email IS NULL OR email = ''", hashedPwd)
+		return
+	}
+
+	// ── Wards (idempotent) ─────────────────────────────────────────────────────
+	var wardCount int64
+	db.Model(&model.Ward{}).Count(&wardCount)
+	if wardCount == 0 {
+		wards := []model.Ward{
+			{DeptID: 1, Name: "General Ward A", WardType: "general", Capacity: 20, Status: "active"},
+			{DeptID: 2, Name: "Cardiac Ward", WardType: "icu", Capacity: 10, Status: "active"},
+			{DeptID: 3, Name: "Neuro Ward", WardType: "general", Capacity: 15, Status: "active"},
+			{DeptID: 5, Name: "Pediatric Ward", WardType: "general", Capacity: 12, Status: "active"},
+			{DeptID: 19, Name: "Emergency Ward", WardType: "emergency", Capacity: 8, Status: "active"},
+		}
+		for i := range wards {
+			db.Create(&wards[i])
+		}
+		log.Println("seeded 5 wards")
+	}
+
+	// ── Beds ─────────────────────────────────────────────────────────────────────
+	var bedCount int64
+	db.Model(&model.Bed{}).Count(&bedCount)
+	if bedCount == 0 {
+		var allWards []model.Ward
+		db.Find(&allWards)
+		bedIdx := 0
+		bedTypes := []string{"general", "icu", "isolation", "general"}
+		for _, w := range allWards {
+			bedsPerWard := 4
+			if w.WardType == "icu" || w.WardType == "emergency" {
+				bedsPerWard = 4
+			}
+			for j := 0; j < bedsPerWard; j++ {
+				bedIdx++
+				bed := model.Bed{
+					WardID:    w.WardID,
+					BedNumber: fmt.Sprintf("B-%03d", bedIdx),
+					BedType:   bedTypes[j%len(bedTypes)],
+					Status:    "available",
+				}
+				db.Create(&bed)
+			}
+		}
+		log.Printf("seeded %d beds across wards\n", bedIdx)
+	}
+
+	// ── Patients ─────────────────────────────────────────────────────────────────
+	type patientData struct {
+		FullName, Gender, BloodGroup, Phone, Address, EmergencyName, EmergencyPhone, InsID, InsProv string
+	}
+
+	patients := []patientData{
+		{"Aarav Sharma", "male", "A+", "+91-9876543001", "12, MG Road, Mumbai", "Priya Sharma", "+91-9876543101", "INS-001", "Star Health"},
+		{"Diya Patel", "female", "B+", "+91-9876543002", "45, SG Highway, Ahmedabad", "Rajesh Patel", "+91-9876543102", "INS-002", "ICICI Lombard"},
+		{"Vihaan Reddy", "male", "O+", "+91-9876543003", "78, Hi-Tech City, Hyderabad", "Lakshmi Reddy", "+91-9876543103", "", ""},
+		{"Ananya Gupta", "female", "AB+", "+91-9876543004", "23, Civil Lines, Delhi", "Suresh Gupta", "+91-9876543104", "INS-004", "Max Bupa"},
+		{"Arjun Singh", "male", "A-", "+91-9876543005", "56, Rajpath, Jaipur", "Meena Singh", "+91-9876543105", "", ""},
+		{"Ishita Nair", "female", "B-", "+91-9876543006", "89, Marine Drive, Kochi", "Gopal Nair", "+91-9876543106", "INS-006", "Bajaj Allianz"},
+		{"Kabir Kumar", "male", "O-", "+91-9876543007", "34, Park Street, Kolkata", "Rina Kumar", "+91-9876543107", "", ""},
+		{"Saanvi Joshi", "female", "A+", "+91-9876543008", "67, FC Road, Pune", "Amit Joshi", "+91-9876543108", "INS-008", "New India Assurance"},
+		{"Reyansh Mehta", "male", "B+", "+91-9876543009", "90, Bandra West, Mumbai", "Neha Mehta", "+91-9876543109", "INS-009", "Star Health"},
+		{"Myra Iyer", "female", "AB-", "+91-9876543010", "15, Adyar, Chennai", "Subramanian Iyer", "+91-9876543110", "", ""},
+	}
+
+	dobs := []string{
+		"1990-05-15", "1985-08-22", "2000-01-10", "1992-11-30", "1978-03-18",
+		"1995-07-05", "1988-12-25", "2002-09-14", "1980-06-08", "1998-04-20",
+	}
+
+	createdPatients := make([]model.Patient, 0, len(patients))
+	for i, p := range patients {
+		dob, _ := time.Parse("2006-01-02", dobs[i])
+		pat := model.Patient{
+			PatCode:               fmt.Sprintf("PAT-%06d", i+1),
+			Email:                 strings.ToLower(strings.ReplaceAll(p.FullName, " ", ".")) + "@patient.apollo.health",
+			HashedPassword:        hashedPwd,
+			FullName:              p.FullName,
+			DateOfBirth:           dob,
+			Gender:                p.Gender,
+			BloodGroup:            p.BloodGroup,
+			ContactNumber:         p.Phone,
+			Address:               p.Address,
+			EmergencyContactName:  p.EmergencyName,
+			EmergencyContactPhone: p.EmergencyPhone,
+			InsuranceID:           p.InsID,
+			InsuranceProvider:     p.InsProv,
+		}
+		if err := db.Create(&pat).Error; err != nil {
+			log.Printf("seed patient %s: %v", p.FullName, err)
+			continue
+		}
+		createdPatients = append(createdPatients, pat)
+	}
+	log.Printf("seeded %d patients", len(createdPatients))
+
+	// ── Doctors lookup ───────────────────────────────────────────────────────────
+	var doctors []model.Doctor
+	db.Where("status = 'active'").Limit(5).Find(&doctors)
+	if len(doctors) == 0 {
+		log.Println("no active doctors found, skipping appointment/admission seed")
+		return
+	}
+
+	// ── Departments lookup ───────────────────────────────────────────────────────
+	var depts []model.Department
+	db.Where("status = 'active'").Limit(5).Find(&depts)
+	if len(depts) == 0 {
+		log.Println("no active departments found, skipping appointment seed")
+		return
+	}
+
+	// ── Appointments (15) ────────────────────────────────────────────────────────
+	statuses := []string{"scheduled", "checked_in", "in_consultation", "completed", "completed",
+		"cancelled", "scheduled", "checked_in", "completed", "completed",
+		"scheduled", "checked_in", "completed", "scheduled", "cancelled"}
+
+	baseTime := time.Now().Truncate(24 * time.Hour).Add(9 * time.Hour) // today 9 AM
+
+	createdAppts := make([]model.Appointment, 0)
+	for i := 0; i < 15 && i < len(statuses); i++ {
+		patIdx := i % len(createdPatients)
+		docIdx := i % len(doctors)
+		deptIdx := i % len(depts)
+
+		scheduledAt := baseTime.Add(time.Duration(i) * 30 * time.Minute)
+		if i >= 10 {
+			scheduledAt = baseTime.AddDate(0, 0, -1).Add(time.Duration(i-10) * 30 * time.Minute)
+		}
+
+		token := ""
+		if statuses[i] == "checked_in" || statuses[i] == "in_consultation" || statuses[i] == "completed" {
+			token = fmt.Sprintf("QGM-%03d", i+1)
+		}
+
+		complaints := []string{
+			"Fever and cold", "Chest pain", "Headache", "Back pain", "Skin rash",
+			"Stomach ache", "Cough", "Joint pain", "Eye problem", "Breathing difficulty",
+			"Follow-up visit", "Annual checkup", "Dizziness", "Fatigue", "Sore throat",
+		}
+
+		appt := model.Appointment{
+			PatientID:      createdPatients[patIdx].PatientID,
+			DoctorID:       doctors[docIdx].DoctorID,
+			DeptID:         depts[deptIdx].DeptID,
+			ScheduledAt:    scheduledAt,
+			QueueToken:     token,
+			Status:         statuses[i],
+			ChiefComplaint: complaints[i],
+		}
+		if err := db.Create(&appt).Error; err != nil {
+			log.Printf("seed appointment %d: %v", i+1, err)
+			continue
+		}
+		createdAppts = append(createdAppts, appt)
+	}
+	log.Printf("seeded %d appointments", len(createdAppts))
+
+	// ── Beds lookup for admissions ──────────────────────────────────────────────
+	var beds []model.Bed
+	db.Where("status = 'available'").Limit(5).Find(&beds)
+
+	var wards []model.Ward
+	db.Limit(5).Find(&wards)
+
+	// ── Admissions (5) ──────────────────────────────────────────────────────────
+	if len(beds) >= 5 && len(wards) >= 1 {
+		admStatuses := []string{"admitted", "admitted", "discharged", "discharged", "admitted"}
+		diagnoses := []string{
+			"Pneumonia - Community acquired",
+			"Acute myocardial infarction",
+			"Fracture - Left tibia",
+			"Dengue fever with thrombocytopenia",
+			"Diabetic ketoacidosis",
+		}
+		treatments := []string{
+			"IV antibiotics, respiratory support",
+			"PCI with stent placement, dual antiplatelet therapy",
+			"Open reduction internal fixation",
+			"Platelet transfusion, fluid management",
+			"Insulin drip, electrolyte correction",
+		}
+
+		for i := 0; i < 5; i++ {
+			patIdx := i % len(createdPatients)
+			docIdx := i % len(doctors)
+			wardIdx := i % len(wards)
+			bedIdx := i % len(beds)
+			deptIdx := i % len(depts)
+
+			admittedAt := time.Now().AddDate(0, 0, -(i * 3 + 1))
+			var dischargedAt *time.Time
+			if admStatuses[i] == "discharged" {
+				t := admittedAt.AddDate(0, 0, i+2)
+				dischargedAt = &t
+			}
+
+			adm := model.Admission{
+				PatientID:         createdPatients[patIdx].PatientID,
+				AdmittingDoctorID: doctors[docIdx].DoctorID,
+				WardID:            wards[wardIdx].WardID,
+				BedID:             beds[bedIdx].BedID,
+				DeptID:            depts[deptIdx].DeptID,
+				AdmittedAt:        admittedAt,
+				Diagnosis:         diagnoses[i],
+				TreatmentPlan:     treatments[i],
+				DischargedAt:      dischargedAt,
+				Status:            admStatuses[i],
+			}
+			if err := db.Create(&adm).Error; err != nil {
+				log.Printf("seed admission %d: %v", i+1, err)
+				continue
+			}
+
+			// Mark bed as occupied for active admissions
+			if admStatuses[i] == "admitted" {
+				db.Model(&model.Bed{}).Where("bed_id = ?", beds[bedIdx].BedID).
+					Update("status", "occupied")
+			}
+		}
+		log.Println("seeded 5 admissions")
+	}
+
+	// ── Invoices (8) ──────────────────────────────────────────────────────────
+	invStatuses := []string{"paid", "finalized", "draft", "paid", "partially_paid", "paid", "draft", "cancelled"}
+	for i := 0; i < 8; i++ {
+		patIdx := i % len(createdPatients)
+
+		consultation := float64(500 + (i * 100))
+		procedure := float64(i * 250)
+		lab := float64(200 + (i * 50))
+		pharmacy := float64(150 + (i * 30))
+		bed := float64(0)
+		misc := float64(50 + (i * 10))
+
+		if i < 5 {
+			bed = float64(1000 + (i * 200))
+		}
+
+		subTotal := consultation + procedure + lab + pharmacy + bed + misc
+		tax := subTotal * 0.05
+		total := subTotal + tax
+		var paid float64
+		var balance float64
+
+		switch invStatuses[i] {
+		case "paid":
+			paid = total
+			balance = 0
+		case "partially_paid":
+			paid = total * 0.5
+			balance = total - paid
+		case "finalized", "draft":
+			paid = 0
+			balance = total
+		case "cancelled":
+			paid = 0
+			balance = 0
+		}
+
+		paymentMode := ""
+		if paid > 0 {
+			modes := []string{"cash", "card", "upi", "insurance"}
+			paymentMode = modes[i%len(modes)]
+		}
+
+		var apptID *uint
+		if i < len(createdAppts) {
+			id := createdAppts[i].ApptID
+			apptID = &id
+		}
+
+		var finalizedAt *time.Time
+		if invStatuses[i] == "paid" || invStatuses[i] == "finalized" || invStatuses[i] == "partially_paid" {
+			t := time.Now().AddDate(0, 0, -i)
+			finalizedAt = &t
+		}
+
+		inv := model.Invoice{
+			PatientID:            createdPatients[patIdx].PatientID,
+			ApptID:               apptID,
+			ConsultationCharges:  consultation,
+			ProcedureCharges:     procedure,
+			LabCharges:           lab,
+			PharmacyCharges:      pharmacy,
+			BedCharges:           bed,
+			MiscellaneousCharges: misc,
+			SubTotal:             subTotal,
+			TaxAmount:            tax,
+			TotalAmount:          total,
+			AmountPaid:           paid,
+			BalanceDue:           balance,
+			PaymentMode:          paymentMode,
+			Status:               invStatuses[i],
+			FinalizedAt:          finalizedAt,
+		}
+		if err := db.Create(&inv).Error; err != nil {
+			log.Printf("seed invoice %d: %v", i+1, err)
+		}
+	}
+	log.Println("seeded 8 invoices")
 }
 
 func seedMedicines(db *gorm.DB) {
